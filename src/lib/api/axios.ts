@@ -3,7 +3,7 @@ import { getDeviceId } from '../utils/device-id';
 
 const api = axios.create({
     baseURL: process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production'
-        ? 'https://mateluxycrmbackend.onrender.com'
+        ? 'https://mateluxy-backend-5p27.onrender.com'
         : 'http://localhost:3001'),
     withCredentials: true, // Send cookies
 });

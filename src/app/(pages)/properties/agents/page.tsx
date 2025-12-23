@@ -45,7 +45,7 @@ export default function AgentsPropertiesPage() {
     // Fetch properties
     // TODO: Ideally we should filter by properties from agents distinctively if needed. 
     // For now, we reuse the same logic as All Properties.
-    const { data: properties = [], isLoading } = useQuery({
+    const { data: properties, isLoading } = useQuery({
         queryKey: ['properties', 'agents', searchQuery, filters, sortConfig],
         queryFn: () => getProperties({
             search: searchQuery,
@@ -138,7 +138,7 @@ export default function AgentsPropertiesPage() {
                 {/* Header Title */}
                 <div className="flex items-center justify-between mb-6">
                     <h1 className="text-[24px] font-semibold text-[#1A1A1A]" style={{ fontFamily: 'var(--font-montserrat)' }}>
-                        Properties from Agents <span className="text-[#8F9BB3] font-medium ml-1">({properties.length})</span>
+                        Properties from Agents <span className="text-[#8F9BB3] font-medium ml-1">({properties?.meta?.total ?? 0})</span>
                     </h1>
                     <div className="flex items-center gap-3">
                         <Button
@@ -164,9 +164,8 @@ export default function AgentsPropertiesPage() {
                 {/* Filters Bar - Sticky */}
                 <div
                     ref={filterBarRef}
-                    className={`flex items-center gap-4 bg-white py-4 mb-8 rounded-xl transition-all z-10 ${
-                        isSticky ? 'sticky top-0' : ''
-                    }`}
+                    className={`flex items-center gap-4 bg-white py-4 mb-8 rounded-xl transition-all z-10 ${isSticky ? 'sticky top-0' : ''
+                        }`}
                 >
                     <div className="relative flex-1 max-w-[400px]">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8F9BB3]" />
@@ -204,7 +203,7 @@ export default function AgentsPropertiesPage() {
                             <div key={i} className="bg-white rounded-[16px] h-[400px] animate-pulse" />
                         ))}
                     </div>
-                ) : properties.length === 0 ? (
+                ) : !properties?.data?.length ? (
                     <div className="flex flex-col items-center justify-center py-20 text-center">
                         <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                             <Search className="w-8 h-8 text-gray-400" />
@@ -216,7 +215,7 @@ export default function AgentsPropertiesPage() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
-                        {properties.map((property) => (
+                        {properties.data.map((property) => (
                             <div key={property.id} className="flex justify-center">
                                 <PropertyCard
                                     property={property}
