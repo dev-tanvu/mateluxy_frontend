@@ -68,7 +68,9 @@ export function PfLocationAutocomplete({
                 // If api helper not found, fall back to fetch
                 // Let's assume relative path /api/properties/pf-locations works if proxy is set up or full URL
                 // Use centralized API URL
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+                // Use centralized API URL with production fallback
+                const isProd = process.env.NODE_ENV === 'production';
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || (isProd ? 'https://mateluxy-backend-5p27.onrender.com' : 'http://localhost:3001');
                 const response = await fetch(`${apiUrl}/properties/pf-locations?search=${encodeURIComponent(debouncedSearchQuery)}`, {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}` // Basic auth handling

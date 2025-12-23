@@ -196,7 +196,8 @@ export function PropertyDetailsStep({ developerId, initialData, onSubmit, onSave
 
             if (token) {
                 // Use fetch with keepalive for more reliability
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+                const isProd = process.env.NODE_ENV === 'production';
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || (isProd ? 'https://mateluxy-backend-5p27.onrender.com' : 'http://localhost:3001');
                 fetch(`${apiUrl}/off-plan-properties`, {
                     method: 'POST',
                     headers: {

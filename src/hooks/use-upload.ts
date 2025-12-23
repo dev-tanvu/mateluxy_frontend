@@ -15,7 +15,8 @@ export const useUpload = () => {
                 .find(row => row.startsWith('accessToken='))
                 ?.split('=')[1];
 
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+            const isProd = process.env.NODE_ENV === 'production';
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || (isProd ? 'https://mateluxy-backend-5p27.onrender.com' : 'http://localhost:3001');
             const response = await fetch(`${apiUrl}/upload`, {
                 method: 'POST',
                 headers: {
