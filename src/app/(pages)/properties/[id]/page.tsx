@@ -371,7 +371,7 @@ export default function PropertyDetailPage() {
 
                     <div>
                         {leads.length > 0 ? (
-                            leads.map((lead) => (
+                            leads.map((lead: PropertyFinderLead) => (
                                 <LeadCard key={lead.id} lead={lead} />
                             ))
                         ) : (
