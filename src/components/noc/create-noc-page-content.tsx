@@ -526,16 +526,14 @@ export function CreateNocPageContent({ onNocCreated, onBack }: CreateNocPageCont
                                 </div>
                             ))}
 
-                            {formData.owners.length < 3 && (
-                                <button
-                                    type="button"
-                                    onClick={addOwner}
-                                    className="flex items-center gap-2 text-[#00B7FF] text-sm font-medium hover:underline"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    Add another owner
-                                </button>
-                            )}
+                            <button
+                                type="button"
+                                onClick={addOwner}
+                                className="flex items-center gap-2 text-[#00B7FF] text-sm font-medium hover:underline"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Add another owner
+                            </button>
                         </div>
                     )}
 
