@@ -3,6 +3,7 @@ import { Search, ChevronDown, Loader2, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api/axios';
+import { API_URL } from '@/lib/api-config';
 
 interface PfLocation {
     id: number;
@@ -69,12 +70,9 @@ export function PfLocationAutocomplete({
                 // Let's assume relative path /api/properties/pf-locations works if proxy is set up or full URL
                 // Use centralized API URL
                 // Use centralized API URL with production fallback
-                const isProd = process.env.NODE_ENV === 'production';
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || (isProd ? 'https://mateluxy-backend-5p27.onrender.com' : 'http://localhost:3001');
+                const apiUrl = API_URL;
                 const response = await fetch(`${apiUrl}/properties/pf-locations?search=${encodeURIComponent(debouncedSearchQuery)}`, {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}` // Basic auth handling
-                    }
+                    credentials: 'include' // Send cookies
                 });
 
                 if (response.ok) {

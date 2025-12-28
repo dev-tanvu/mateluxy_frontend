@@ -19,6 +19,7 @@ import { CreatePropertyData, saveDraft, deleteDraft } from '@/services/property.
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { NocData } from '@/components/noc/create-noc-page-content';
+import { API_URL } from '@/lib/api-config';
 
 interface PropertyFormStepProps {
     nocFile: File | null;
@@ -347,7 +348,7 @@ export function PropertyFormStep({ nocFile: initialNocFile, category: initialCat
             // check if action was 'publish' (Update to PF)
             if ((window as any)._submitAction === 'publish' && savedPropertyId) {
                 toast.info('Syncing to Property Finder...');
-                const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+                const backendUrl = API_URL;
 
                 try {
                     // Trigger Sync

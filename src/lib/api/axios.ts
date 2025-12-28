@@ -1,10 +1,9 @@
 import axios from 'axios';
 import { getDeviceId } from '../utils/device-id';
+import { API_URL } from '../api-config';
 
 const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || (process.env.NODE_ENV === 'production'
-        ? 'https://mateluxy-backend-5p27.onrender.com'
-        : 'http://localhost:3001'),
+    baseURL: API_URL,
     withCredentials: true, // Send cookies
 });
 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { API_URL } from '@/lib/api-config';
 import { CreateOffPlanPropertyDto } from '@/lib/services/off-plan-property.service';
 import { SpecificDetailsTab } from './tabs/specific-details-tab';
 import { LocationsTab } from './tabs/locations-tab';
@@ -189,25 +190,17 @@ export function PropertyDetailsStep({ developerId, initialData, onSubmit, onSave
             });
 
             // Get auth token from cookies or localStorage
-            const token = document.cookie
-                .split('; ')
-                .find(row => row.startsWith('accessToken='))
-                ?.split('=')[1];
-
-            if (token) {
-                // Use fetch with keepalive for more reliability
-                const isProd = process.env.NODE_ENV === 'production';
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || (isProd ? 'https://mateluxy-backend-5p27.onrender.com' : 'http://localhost:3001');
-                fetch(`${apiUrl}/off-plan-properties`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ ...draftData, isActive: false }),
-                    keepalive: true
-                }).catch(err => console.error('Auto-save failed:', err));
-            }
+            // Use fetch with keepalive for more reliability
+            const apiUrl = API_URL;
+            fetch(`${apiUrl}/off-plan-properties`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ ...draftData, isActive: false }),
+                keepalive: true,
+                credentials: 'include' // Send cookies
+            }).catch(err => console.error('Auto-save failed:', err));
         } catch (error) {
             console.error('Error in auto-save:', error);
         }

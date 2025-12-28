@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { CountryCodeSelect } from '@/components/ui/country-code-select';
 import { toast } from 'sonner';
 import { CountryCode } from 'libphonenumber-js';
+import { API_URL } from '@/lib/api-config';
 
 interface Owner {
     name: string;
@@ -182,7 +183,7 @@ export function CreateNocPageContent({ onNocCreated, onBack }: CreateNocPageCont
     const handleSubmit = async () => {
         setIsSubmitting(true);
         try {
-            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+            const backendUrl = API_URL;
 
             const formDataToSend = new FormData();
 

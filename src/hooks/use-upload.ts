@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { API_URL } from '@/lib/api-config';
 
 export const useUpload = () => {
     const [isUploading, setIsUploading] = useState(false);
@@ -10,18 +11,10 @@ export const useUpload = () => {
             const formData = new FormData();
             formData.append('file', file);
 
-            const token = document.cookie
-                .split('; ')
-                .find(row => row.startsWith('accessToken='))
-                ?.split('=')[1];
-
-            const isProd = process.env.NODE_ENV === 'production';
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || (isProd ? 'https://mateluxy-backend-5p27.onrender.com' : 'http://localhost:3001');
+            const apiUrl = API_URL;
             const response = await fetch(`${apiUrl}/upload`, {
                 method: 'POST',
-                headers: {
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                },
+                credentials: 'include', // Send cookies
                 body: formData,
             });
 

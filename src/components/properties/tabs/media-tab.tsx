@@ -7,8 +7,9 @@ import { Label } from '@/components/ui/label';
 import { ImagePlus, X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import axios from 'axios';
+import api from '@/lib/api/axios';
 import { Skeleton } from '@/components/ui/skeleton';
+import { API_URL } from '@/lib/api-config';
 
 import {
     DndContext,
@@ -57,7 +58,7 @@ const SortableMediaItem = React.memo(({ id, src, onRemove, index, isUploading }:
     useEffect(() => {
         // Only proxy if it's an external URL (http) and not a local blob
         if (src.startsWith('http') && !src.startsWith('blob:') && !hasError) {
-            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+            const backendUrl = API_URL;
             // Use 90% compression (q=10) and small width (w=200) for thumbnails
             setImgSrc(`${backendUrl}/upload/optimize?url=${encodeURIComponent(src)}&w=200&q=80`);
         } else {
@@ -220,9 +221,7 @@ export function MediaTab({ register, setValue, watch }: MediaTabProps) {
     const uploadFile = async (file: File): Promise<string> => {
         const formData = new FormData();
         formData.append('file', file);
-        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-
-        const response = await axios.post(`${backendUrl}/upload`, formData, {
+        const response = await api.post('/upload', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
@@ -232,8 +231,7 @@ export function MediaTab({ register, setValue, watch }: MediaTabProps) {
 
     const deleteFile = async (url: string) => {
         try {
-            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-            await axios.delete(`${backendUrl}/upload/delete`, {
+            await api.delete('/upload/delete', {
                 data: { url }
             });
         } catch (error) {

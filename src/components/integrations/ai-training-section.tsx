@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Sparkles, Trash2, Plus, Loader2, Settings2, BookOpen, Save, AlignLeft, Type } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { API_URL } from '@/lib/api-config';
 
 interface AiSettings {
     id: string;
@@ -29,7 +30,7 @@ interface TrainingExample {
     createdAt: string;
 }
 
-const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const backendUrl = API_URL;
 
 // API functions
 const getAiSettings = async (): Promise<AiSettings> => {

@@ -8,6 +8,7 @@ import { Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { SimpleRichTextEditor } from '@/components/ui/simple-rich-text-editor';
+import { API_URL } from '@/lib/api-config';
 
 interface GeneralDetailsTabProps {
     register: UseFormRegister<any>;
@@ -27,7 +28,7 @@ export function GeneralDetailsTab({ register, errors, setValue, watch, purpose, 
     const handleGenerateTitle = async () => {
         setIsGeneratingTitle(true);
         try {
-            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+            const backendUrl = API_URL;
 
             // Collect property details from form
             const propertyDetails = {
@@ -80,7 +81,7 @@ export function GeneralDetailsTab({ register, errors, setValue, watch, purpose, 
     const handleGenerateDescription = async () => {
         setIsGenerating(true);
         try {
-            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+            const backendUrl = API_URL;
 
             // Collect property details from form
             const propertyDetails = {
