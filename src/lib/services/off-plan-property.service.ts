@@ -9,6 +9,7 @@ export interface OffPlanProperty {
         name: string;
         logoUrl?: string;
         salesManagerPhone?: string;
+        salesManagerPhoneSecondary?: string;
     };
 
     // Specific Details

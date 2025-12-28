@@ -2,58 +2,48 @@
 
 import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useProperty } from '@/hooks/use-properties';
+import { useQuery } from '@tanstack/react-query';
+import { getProperty } from '@/services/property.service';
 import { PropertyFormStep } from '@/components/properties/property-form-step';
+import { Loader2 } from 'lucide-react';
 
 export default function EditPropertyPage() {
-    const router = useRouter();
     const params = useParams();
-    const propertyId = params.id as string;
+    const router = useRouter();
+    const id = params.id as string;
 
-    const { data: property, isLoading, isError } = useProperty(propertyId);
-
-    const handleBack = () => {
-        router.push('/properties/all');
-    };
+    const { data: property, isLoading, error } = useQuery({
+        queryKey: ['property', id],
+        queryFn: () => getProperty(id),
+        enabled: !!id,
+    });
 
     if (isLoading) {
         return (
-            <div className="h-full flex items-center justify-center">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                    <p className="text-muted-foreground">Loading property details...</p>
-                </div>
+            <div className="flex h-[50vh] items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-[#00B7FF]" />
             </div>
         );
     }
 
-    if (isError || !property) {
-        return (
-            <div className="h-full flex items-center justify-center">
-                <div className="text-center">
-                    <h2 className="text-xl font-semibold mb-2">Error loading property</h2>
-                    <p className="text-muted-foreground mb-4">Could not find the property you are looking for.</p>
-                    <button
-                        onClick={handleBack}
-                        className="text-primary hover:underline"
-                    >
-                        Return to properties list
-                    </button>
-                </div>
-            </div>
-        );
+    if (error || !property) {
+        return <div className="p-8 text-center text-gray-500">Property not found</div>;
     }
 
     return (
-        <div className="h-full p-8 w-full">
-            <div className="w-full">
-                <h1 className="text-2xl font-bold mb-6 text-center">Edit Property</h1>
+        <div className="min-h-screen bg-white py-8">
+            <div className="max-w-[1200px] mx-auto px-4">
+                <div className="mb-8">
+                    <h1 className="text-[28px] font-bold font-[var(--font-outfit)] text-[#1A1A1A]">Edit Property</h1>
+                    <p className="text-[#5F6A7A] mt-1">Update the details of your property listing.</p>
+                </div>
+
                 <PropertyFormStep
-                    nocFile={null} // Files can't be pre-filled securely in browser from URL
-                    category={property.category}
-                    purpose={property.purpose}
+                    nocFile={null}
+                    category={property.category || 'RESIDENTIAL'}
+                    purpose={property.purpose?.toLowerCase() || 'sell'}
                     initialData={property}
-                    onBack={handleBack}
+                    onBack={() => router.back()}
                 />
             </div>
         </div>
