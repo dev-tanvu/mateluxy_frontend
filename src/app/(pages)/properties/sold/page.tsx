@@ -159,6 +159,7 @@ export default function SoldPropertiesPage() {
                         minArea={aggregates?.minArea}
                         maxArea={aggregates?.maxArea}
                         propertyTypes={aggregates?.propertyTypes || []}
+                        initialStatus="SOLD"
                     />
                 </div>
             )}
@@ -177,9 +178,8 @@ export default function SoldPropertiesPage() {
                 {/* Filters Bar - Sticky */}
                 <div
                     ref={filterBarRef}
-                    className={`flex items-center gap-4 bg-white py-4 mb-4 rounded-xl transition-all z-10 ${
-                        isSticky ? 'sticky top-0' : ''
-                    }`}
+                    className={`flex items-center gap-4 bg-white py-4 mb-4 rounded-xl transition-all z-10 ${isSticky ? 'sticky top-0' : ''
+                        }`}
                 >
                     <div className="relative flex-1 max-w-[400px]">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8F9BB3]" />

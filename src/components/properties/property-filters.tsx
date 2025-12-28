@@ -44,13 +44,14 @@ export function PropertyFilters({
     maxPrice = 100000000,
     minArea = 0,
     maxArea = 50000,
-    propertyTypes = [] // Available types from backend
-}: PropertyFiltersProps) {
+    propertyTypes = [], // Available types from backend
+    initialStatus = ''
+}: PropertyFiltersProps & { initialStatus?: string }) {
     const [agentIds, setAgentIds] = useState<string[]>([]);
     const [category, setCategory] = useState<string>(''); // Default empty
     const [purpose, setPurpose] = useState<string>(''); // Default empty
     const [selectedPropertyTypes, setSelectedPropertyTypes] = useState<string[]>([]);
-    const [propertyStatus, setPropertyStatus] = useState(''); // Default empty
+    const [propertyStatus, setPropertyStatus] = useState(initialStatus); // Initialize with prop
     const [priceRange, setPriceRange] = useState([minPrice, maxPrice]);
     const [areaRange, setAreaRange] = useState([minArea, maxArea]);
     const [reference, setReference] = useState('');
