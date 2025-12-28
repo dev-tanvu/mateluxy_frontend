@@ -231,7 +231,9 @@ export function CreateNocPageContent({ onNocCreated, onBack }: CreateNocPageCont
             });
 
             if (!response.ok) {
-                throw new Error('Failed to create NOC');
+                const errorText = await response.text();
+                console.error('NOC Creation Failed Backend Response:', errorText);
+                throw new Error(`Failed to create NOC: ${errorText}`);
             }
 
             const result = await response.json();

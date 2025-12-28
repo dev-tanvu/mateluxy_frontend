@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch } from 'react-hook-form';
+import { UseFormRegister, FieldErrors, UseFormSetValue, UseFormWatch, Controller } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { SimpleRichTextEditor } from '@/components/ui/simple-rich-text-editor';
 
 interface GeneralDetailsTabProps {
     register: UseFormRegister<any>;
@@ -15,11 +16,13 @@ interface GeneralDetailsTabProps {
     watch: UseFormWatch<any>;
     purpose?: string;
     category?: string;
+    control?: any; // Add control to props for Controller
 }
 
-export function GeneralDetailsTab({ register, errors, setValue, watch, purpose, category }: GeneralDetailsTabProps) {
+export function GeneralDetailsTab({ register, errors, setValue, watch, purpose, category, control }: GeneralDetailsTabProps) {
     const [isGenerating, setIsGenerating] = useState(false);
     const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
+
 
     const handleGenerateTitle = async () => {
         setIsGeneratingTitle(true);
@@ -189,16 +192,34 @@ export function GeneralDetailsTab({ register, errors, setValue, watch, purpose, 
                         )}
                     </button>
                 </Label>
-                <textarea
-                    id="propertyDescription"
-                    placeholder="Write your property description"
-                    rows={8}
-                    className={cn(
-                        "w-full bg-white border border-[#EDF1F7] rounded-lg focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-[#8F9BB3] text-[15px] p-4 resize-none",
-                        errors.propertyDescription && "border-red-500"
-                    )}
-                    {...register('propertyDescription')}
-                />
+                {control ? (
+                    <Controller
+                        name="propertyDescription"
+                        control={control}
+                        render={({ field }) => (
+                            <SimpleRichTextEditor
+                                value={field.value}
+                                onChange={(val) => {
+                                    field.onChange(val);
+                                    // Trigger dirty state if needed
+                                }}
+                                placeholder="Write your property description..."
+                                className={cn(errors.propertyDescription && "border-red-500 ring-1 ring-red-500")}
+                            />
+                        )}
+                    />
+                ) : (
+                    <textarea
+                        id="propertyDescription"
+                        placeholder="Write your property description"
+                        rows={8}
+                        className={cn(
+                            "w-full bg-white border border-[#EDF1F7] rounded-lg focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 placeholder:text-[#8F9BB3] text-[15px] p-4 resize-none",
+                            errors.propertyDescription && "border-red-500"
+                        )}
+                        {...register('propertyDescription')}
+                    />
+                )}
                 {errors.propertyDescription && <p className="text-sm text-red-500">{errors.propertyDescription.message as string}</p>}
             </div>
 
