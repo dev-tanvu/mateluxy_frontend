@@ -3,6 +3,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { Edit, Trash2, User, MoreVertical, CheckCircle, XCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { Agent } from '@/lib/services/agent.service';
 import {
     DropdownMenu,
@@ -23,6 +24,7 @@ export function AgentCard({ agent, onEdit, onDelete }: AgentCardProps) {
     const { mutate: activateAgent } = useActivateAgent();
     const { mutate: deactivateAgent } = useDeactivateAgent();
     const { mutate: submitForVerification } = useSubmitForVerification();
+    const router = useRouter();
 
     const handleStatusChange = () => {
         if (agent.isActive) {
@@ -39,7 +41,10 @@ export function AgentCard({ agent, onEdit, onDelete }: AgentCardProps) {
     };
 
     return (
-        <div className="relative bg-white rounded-[30px] overflow-hidden border border-[#EDF1F7] w-[260px]">
+        <div
+            className="relative bg-white rounded-[30px] overflow-hidden border border-[#EDF1F7] w-[260px] cursor-pointer hover:shadow-md transition-all duration-300"
+            onClick={() => router.push(`/agents/${agent.id}`)}
+        >
             {/* Profile Image Section */}
             <div className="relative ml-[8px] mr-[8px] mt-[8px] rounded-[26px] h-[240px] overflow-hidden">
                 {agent.photoUrl ? (
@@ -95,14 +100,20 @@ export function AgentCard({ agent, onEdit, onDelete }: AgentCardProps) {
                     {/* Action Buttons */}
                     <div className="flex items-center justify-end gap-1">
                         <button
-                            onClick={() => onEdit(agent)}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onEdit(agent);
+                            }}
                             className="p-1.5 hover:bg-blue-50 rounded transition-colors"
                             aria-label="Edit agent"
                         >
                             <Edit className="h-4 w-4 text-[#00B7FF]" />
                         </button>
                         <button
-                            onClick={() => onDelete(agent)}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onDelete(agent);
+                            }}
                             className="p-1.5 hover:bg-red-50 rounded transition-colors"
                             aria-label="Delete agent"
                         >
@@ -111,7 +122,10 @@ export function AgentCard({ agent, onEdit, onDelete }: AgentCardProps) {
 
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                                <button className="p-1.5 hover:bg-gray-50 rounded transition-colors outline-none">
+                                <button
+                                    className="p-1.5 hover:bg-gray-50 rounded transition-colors outline-none"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
                                     <MoreVertical className="h-4 w-4 text-gray-400" />
                                 </button>
                             </DropdownMenuTrigger>

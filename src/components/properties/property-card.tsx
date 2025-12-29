@@ -281,7 +281,15 @@ export function PropertyCard({ property, onStatusChange, onToggleActive }: Prope
                 </div>
 
                 {/* Agent Info */}
-                <div className="flex items-center justify-between mb-5">
+                <div
+                    className="flex items-center justify-between mb-5 cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        // Use agent ID if available, fallback to '1' or handle gracefully
+                        const agentId = property.assignedAgent?.id || property.assignedAgentId || '1';
+                        router.push(`/agents/${agentId}`);
+                    }}
+                >
                     <div className="flex items-center gap-2.5">
                         <div className="relative h-9 w-9 rounded-full overflow-hidden border border-gray-100">
                             <Image

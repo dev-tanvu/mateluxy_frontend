@@ -25,6 +25,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useRouter } from 'next/navigation';
 
 // --- Shared Types ---
 
@@ -56,6 +57,7 @@ export interface PropertyDetailData {
     area: string | number;
     coverPhoto: string;
     agent: {
+        id?: string;
         name: string;
         photo: string;
         languages: string[];
@@ -333,6 +335,7 @@ interface PropertyDetailViewProps {
 }
 
 export function PropertyDetailView({ data, onEdit }: PropertyDetailViewProps) {
+    const router = useRouter();
     const [activeTab, setActiveTab] = useState<'overview' | 'insights' | 'leads'>('overview');
 
     return (
@@ -433,7 +436,13 @@ export function PropertyDetailView({ data, onEdit }: PropertyDetailViewProps) {
                             </div>
                         ) : (
                             <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
+                                <div
+                                    className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+                                    onClick={() => {
+                                        const agentId = data.agent.id || '1';
+                                        router.push(`/agents/${agentId}`);
+                                    }}
+                                >
                                     <div className="relative h-[50px] w-[50px] rounded-full overflow-hidden flex-shrink-0">
                                         <Image
                                             src={data.agent.photo || "/profile.svg"}

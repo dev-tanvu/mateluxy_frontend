@@ -74,6 +74,7 @@ export default function StandardPropertyDetailPage() {
         area: property.area?.toLocaleString() || '0',
         coverPhoto: property.coverPhoto || '/placeholder-property.jpg',
         agent: {
+            id: property.assignedAgent?.id || property.assignedAgentId,
             name: property.assignedAgent?.name || 'Tanvir Almas',
             photo: property.assignedAgent?.photoUrl || '/profile.svg',
             languages: property.assignedAgent?.languages || ['English', 'Bengali'],
