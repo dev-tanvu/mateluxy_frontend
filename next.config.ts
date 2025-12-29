@@ -21,6 +21,10 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'static.shared.propertyfinder.ae',
       },
+      {
+        protocol: 'https',
+        hostname: 'ui-avatars.com',
+      },
     ],
   },
 };
