@@ -231,17 +231,16 @@ export function PropertyCard({ property, onStatusChange, onToggleActive }: Prope
                         {(() => {
                             const title = property.propertyTitle?.trim()?.toLowerCase();
 
-                            // Priority 1: Use Property Finder location path (most accurate)
-                            // But skip if it's the same as the title (common data entry issue)
-                            const pfPath = property.pfLocationPath?.trim();
-                            if (pfPath && pfPath.toLowerCase() !== title) {
-                                return pfPath;
-                            }
-
-                            // Priority 2: Use address if it's different from title
+                            // Priority 1: Use Google Map Location (address)
                             const addr = property.address?.trim();
                             if (addr && addr.toLowerCase() !== title) {
                                 return addr;
+                            }
+
+                            // Priority 2: Use Property Finder location path
+                            const pfPath = property.pfLocationPath?.trim();
+                            if (pfPath && pfPath.toLowerCase() !== title) {
+                                return pfPath;
                             }
 
                             // Priority 3: Use emirate

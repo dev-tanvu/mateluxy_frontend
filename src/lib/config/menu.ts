@@ -26,8 +26,7 @@ export interface MenuItem {
 
 // Items that are under development
 export const UNDER_DEVELOPMENT_ITEMS = [
-    'Agent App Notifications',
-    'Password Manager'
+    'Agent App Notifications'
 ];
 
 export const MENU_ITEMS: MenuItem[] = [
@@ -84,6 +83,6 @@ export const MENU_ITEMS: MenuItem[] = [
     { title: 'Agent App Notifications', icon: Bell, iconKey: 'Bell', href: '/notifications', underDevelopment: true, permission: 'App Notifications' },
     { title: 'Admin & Editors', icon: Lock, iconKey: 'Lock', href: '/users', permission: 'Users' },
     { title: 'System Settings', icon: Settings, iconKey: 'Settings', href: '/settings', permission: 'Settings' },
-    { title: 'Password Manager', icon: Lock, iconKey: 'Lock', href: '/passwords', underDevelopment: true, permission: 'Password Manager' },
+    { title: 'Password Manager', icon: Lock, iconKey: 'Lock', href: '/passwords', permission: 'Password Manager' },
 ];
 

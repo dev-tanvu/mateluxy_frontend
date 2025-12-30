@@ -46,6 +46,10 @@ export const markNotificationsRead = async (): Promise<void> => {
     await api.post('/integrations/notifications/read');
 };
 
+export const sendTestNotification = async (): Promise<void> => {
+    await api.post('/integrations/notifications/test');
+};
+
 // Helper for System Settings
 export const updateSystemSettings = async (timeZone: string) => {
     return updateIntegration('system_settings', { isEnabled: true, credentials: { timeZone } });

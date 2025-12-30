@@ -257,8 +257,13 @@ export function PropertyFormStep({ nocFile: initialNocFile, category: initialCat
             if (nocData.bathrooms) {
                 setValue('bathrooms', parseInt(nocData.bathrooms));
             }
-            // Community to address
-            if (nocData.community) {
+            // Location from NOC (Google Map Location)
+            if (nocData.location) {
+                setValue('address', nocData.location);
+                if (nocData.latitude) setValue('latitude', nocData.latitude);
+                if (nocData.longitude) setValue('longitude', nocData.longitude);
+            } else if (nocData.community) {
+                // Fallback: Community to address
                 setValue('address', nocData.community + (nocData.streetName ? ', ' + nocData.streetName : ''));
             }
             // Rental amount as price if purpose is rent

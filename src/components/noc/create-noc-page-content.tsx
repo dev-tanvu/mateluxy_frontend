@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Check, Upload, Plus, Download, Printer, Eye, X, FileText } from 'lucide-react';
+import { Check, Upload, Plus, Download, Printer, Eye, X, FileText, Search, MapPin } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { CountryCodeSelect } from '@/components/ui/country-code-select';
 import { toast } from 'sonner';
 import { CountryCode } from 'libphonenumber-js';
 import { API_URL } from '@/lib/api-config';
+import { AddressAutocomplete } from '@/components/off-plan-properties/maps/address-autocomplete';
 
 interface Owner {
     name: string;
@@ -30,6 +31,9 @@ interface NocFormData {
     buildingProjectName: string;
     community: string;
     streetName: string;
+    location: string;
+    latitude: number | null;
+    longitude: number | null;
     buildUpArea: string;
     plotArea: string;
     bedrooms: string;
@@ -52,6 +56,9 @@ export interface NocData {
     clientPhone: string;
     clientCountryCode: string;
     // Property details for auto-fill
+    location?: string;
+    latitude?: number | null;
+    longitude?: number | null;
     propertyType: string;
     buildingProjectName: string;
     community: string;
@@ -89,6 +96,9 @@ const initialFormData: NocFormData = {
     buildingProjectName: '',
     community: '',
     streetName: '',
+    location: '',
+    latitude: null,
+    longitude: null,
     buildUpArea: '',
     plotArea: '',
     bedrooms: '',
@@ -143,6 +153,7 @@ export function CreateNocPageContent({ onNocCreated, onBack }: CreateNocPageCont
     const handleInputChange = (field: keyof NocFormData, value: any) => {
         setFormData({ ...formData, [field]: value });
     };
+
 
     const handleSignatureDrop = (e: React.DragEvent, index: number) => {
         e.preventDefault();
@@ -212,7 +223,23 @@ export function CreateNocPageContent({ onNocCreated, onBack }: CreateNocPageCont
             formDataToSend.append('propertyType', formData.propertyType);
             formDataToSend.append('buildingProjectName', formData.buildingProjectName);
             formDataToSend.append('community', formData.community);
+            formDataToSend.append('community', formData.community);
             formDataToSend.append('streetName', formData.streetName);
+            if (formData.location) formDataToSend.append('location', formData.location);
+            if (formData.latitude) formDataToSend.append('latitude', formData.latitude.toString());
+            if (formData.longitude) formDataToSend.append('longitude', formData.longitude.toString());
+
+            // Client Phone (Required unique) checks
+            const clientPhone = formData.owners[0]?.phone;
+            // The backend checks for uniqueness on create.
+            // We pass it in the DTO as 'clientPhone' for the top level check if we want, 
+            // OR the backend extracts it from owners. 
+            // Looking at NocService edit, I added `clientPhone` to CreateNocDto top level.
+            // So we must append it.
+            if (clientPhone) {
+                formDataToSend.append('clientPhone', clientPhone);
+            }
+
             if (formData.buildUpArea) formDataToSend.append('buildUpArea', formData.buildUpArea);
             if (formData.plotArea) formDataToSend.append('plotArea', formData.plotArea);
             if (formData.bedrooms) formDataToSend.append('bedrooms', formData.bedrooms);
@@ -232,17 +259,18 @@ export function CreateNocPageContent({ onNocCreated, onBack }: CreateNocPageCont
             });
 
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('NOC Creation Failed Backend Response:', errorText);
-                throw new Error(`Failed to create NOC: ${errorText}`);
+                const errorData = await response.json().catch(() => ({}));
+                const errorMessage = errorData.message || (await response.text()) || 'Unknown error occurred';
+                console.error('NOC Creation Failed Backend Response:', errorMessage);
+                throw new Error(errorMessage);
             }
 
             const result = await response.json();
             toast.success('NOC created successfully!');
             setCreatedNoc({ id: result.id, pdfUrl: result.pdfUrl });
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error creating NOC:', error);
-            toast.error('Failed to create NOC');
+            toast.error(error.message || 'Failed to create NOC');
         } finally {
             setIsSubmitting(false);
         }
@@ -279,6 +307,9 @@ export function CreateNocPageContent({ onNocCreated, onBack }: CreateNocPageCont
                 clientName: formData.owners[0]?.name || '',
                 clientPhone: formData.owners[0]?.phone || '',
                 clientCountryCode: formData.owners[0]?.countryCode || 'AE',
+                location: formData.location,
+                latitude: formData.latitude,
+                longitude: formData.longitude,
                 propertyType: formData.propertyType,
                 buildingProjectName: formData.buildingProjectName,
                 community: formData.community,
@@ -579,15 +610,21 @@ export function CreateNocPageContent({ onNocCreated, onBack }: CreateNocPageCont
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-sm text-gray-600">Street Name</Label>
-                                    <Input
-                                        placeholder="e.g. New Patton road"
-                                        value={formData.streetName}
-                                        onChange={(e) => handleInputChange('streetName', e.target.value)}
-                                        className="h-12 border-gray-200 rounded-lg"
+                                    <Label className="text-sm text-gray-600">Google Map Location</Label>
+                                    <AddressAutocomplete
+                                        value={formData.location || ''}
+                                        onChange={(address, lat, lng) => {
+                                            setFormData(prev => ({
+                                                ...prev,
+                                                location: address,
+                                                latitude: lat,
+                                                longitude: lng
+                                            }));
+                                        }}
                                     />
                                 </div>
                             </div>
+
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">

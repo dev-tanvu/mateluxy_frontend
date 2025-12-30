@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getNotifications, markNotificationsRead } from '@/services/integration.service';
+import { getMySettings } from '@/services/settings.service';
 import { formatDistanceToNow, format, isToday, isYesterday, isThisWeek, isThisMonth, parseISO, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 
 // Sidebar Panel Component
@@ -247,6 +248,31 @@ export function NotificationsDropdown() {
         queryFn: getNotifications,
         refetchInterval: 30000,
     });
+
+    const { data: userSettings } = useQuery({
+        queryKey: ['my-settings'],
+        queryFn: getMySettings
+    });
+
+    // Sound Logic
+    const [lastNotificationId, setLastNotificationId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (notifications.length > 0) {
+            const latestNode = notifications[0];
+
+            // If we have a new top notification and it's not the same as before (and initial load handling)
+            if (lastNotificationId && latestNode.id !== lastNotificationId && !latestNode.isRead) {
+                // Play Sound
+                if (userSettings?.notificationSoundUrl) {
+                    const audio = new Audio(userSettings.notificationSoundUrl);
+                    audio.play().catch(e => console.error("Audio play failed", e));
+                }
+            }
+
+            setLastNotificationId(latestNode.id);
+        }
+    }, [notifications, userSettings, lastNotificationId]);
 
     const markReadMutation = useMutation({
         mutationFn: markNotificationsRead,

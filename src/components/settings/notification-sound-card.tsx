@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Volume2, Music, Check, Loader2, Play, Square } from 'lucide-react';
 import { updateNotificationSettings, getMySettings } from '@/services/settings.service';
+import { sendTestNotification } from '@/services/integration.service';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -77,6 +78,17 @@ export function NotificationSoundCard() {
         formData.append('useCustomNotificationSound', 'false');
 
         mutation.mutate(formData);
+    };
+
+    const handleSendTestNotification = async () => {
+        try {
+            await sendTestNotification();
+            // Invalidate notifications to trigger the dropdown sound logic (which we will add next)
+            await queryClient.invalidateQueries({ queryKey: ['notifications'] });
+            toast.success('Test notification sent');
+        } catch (e) {
+            toast.error('Failed to send test notification');
+        }
     };
 
     if (isLoading) return <div className="animate-pulse h-[300px] bg-gray-100 rounded-[24px]" />;
@@ -164,6 +176,14 @@ export function NotificationSoundCard() {
                         disabled={mutation.isPending}
                     >
                         {mutation.isPending ? <><Loader2 className="h-5 w-5 animate-spin mr-2" /> Saving...</> : 'Save Selected Sound'}
+                    </Button>
+
+                    <Button
+                        variant="ghost"
+                        className="w-full mt-4 text-gray-500 hover:text-indigo-600 hover:bg-white"
+                        onClick={handleSendTestNotification}
+                    >
+                        Send Test Notification
                     </Button>
                 </div>
             </div>
