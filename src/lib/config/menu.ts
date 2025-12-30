@@ -26,7 +26,6 @@ export interface MenuItem {
 
 // Items that are under development
 export const UNDER_DEVELOPMENT_ITEMS = [
-    'File Manager',
     'Agent App Notifications',
     'Password Manager'
 ];
@@ -81,7 +80,7 @@ export const MENU_ITEMS: MenuItem[] = [
     { title: 'Developers', icon: Briefcase, iconKey: 'Briefcase', href: '/developers', permission: 'Developers' },
     { title: 'Integration', icon: Code2, iconKey: 'Code2', href: '/integration', permission: 'Integrations' },
     { title: 'Activity Logs', icon: Activity, iconKey: 'Activity', href: '/activity-logs', permission: 'Activity Log' },
-    { title: 'File Manager', icon: FolderOpen, iconKey: 'FolderOpen', href: '/file-manager', underDevelopment: true, permission: 'File Manager' },
+    { title: 'File Manager', icon: FolderOpen, iconKey: 'FolderOpen', href: '/file-manager', permission: 'File Manager' },
     { title: 'Agent App Notifications', icon: Bell, iconKey: 'Bell', href: '/notifications', underDevelopment: true, permission: 'App Notifications' },
     { title: 'Admin & Editors', icon: Lock, iconKey: 'Lock', href: '/users', permission: 'Users' },
     { title: 'System Settings', icon: Settings, iconKey: 'Settings', href: '/settings', permission: 'Settings' },
