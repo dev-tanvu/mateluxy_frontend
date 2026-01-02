@@ -138,13 +138,14 @@ export function Topbar() {
                                 <span className="text-[13px] text-[#222F3E]">Add new agent</span>
                             </Link>
 
-                            <button
-                                onClick={() => handleUnderDevClick('Tenancy Contract')}
+                            <Link
+                                href="/tenancy/create"
+                                onClick={() => setIsRapidToolsOpen(false)}
                                 className="w-full flex items-center gap-3 py-2 px-1 rounded-md hover:bg-gray-50 transition-colors text-left"
                             >
                                 <img src="/svg/create_tenancy_icon.svg" alt="" className="h-4 w-4 opacity-70" />
                                 <span className="text-[13px] text-[#222F3E]">Create tenancy contract</span>
-                            </button>
+                            </Link>
 
                             <button
                                 onClick={() => {
