@@ -20,9 +20,11 @@ interface PropertyCardProps {
     property: Property;
     onStatusChange?: (id: string, status: 'AVAILABLE' | 'SOLD' | 'RENTED') => void;
     onToggleActive?: (id: string, isActive: boolean) => void;
+    onClick?: (property: Property) => void;
+    isSelected?: boolean;
 }
 
-export function PropertyCard({ property, onStatusChange, onToggleActive }: PropertyCardProps) {
+export function PropertyCard({ property, onStatusChange, onToggleActive, onClick, isSelected }: PropertyCardProps) {
     const router = useRouter();
     const queryClient = useQueryClient();
     const score = calculatePropertyScore(property); // Now supports Property type
@@ -49,6 +51,12 @@ export function PropertyCard({ property, onStatusChange, onToggleActive }: Prope
         if (target.closest('button') || target.closest('[role="button"]')) {
             return;
         }
+
+        if (onClick) {
+            onClick(property);
+            return;
+        }
+
         router.push(`/properties/${property.id}`);
     };
 
@@ -79,7 +87,10 @@ export function PropertyCard({ property, onStatusChange, onToggleActive }: Prope
         <div
             onClick={handleCardClick}
             onMouseEnter={handleCardHover}
-            className="bg-white rounded-[16px] border border-[1px] border-[#E6E6E6] hover:shadow-lg transition-all duration-300 group flex flex-col w-full max-w-[360px] overflow-hidden cursor-pointer"
+            className={cn(
+                "bg-white rounded-[16px] border transition-all duration-300 group flex flex-col w-full max-w-[360px] overflow-hidden cursor-pointer",
+                isSelected ? "border-[#00AAFF] ring-2 ring-[#00AAFF]/20" : "border-[#E6E6E6] hover:shadow-lg"
+            )}
         >
             {/* Image Section */}
             <div className="relative h-[220px] w-full p-[10px]">

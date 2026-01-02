@@ -39,4 +39,29 @@ export const fileManagerService = {
         const response = await api.delete(`/file-manager/file/${id}`);
         return response.data;
     },
+
+    getStats: async () => {
+        const response = await api.get('/file-manager/stats');
+        return response.data;
+    },
+
+    getRecent: async () => {
+        const response = await api.get('/file-manager/recent');
+        return response.data;
+    },
+
+    getDeleted: async () => {
+        const response = await api.get('/file-manager/deleted');
+        return response.data;
+    },
+
+    restoreFile: async (id: string) => {
+        const response = await api.post(`/file-manager/file/${id}/restore`);
+        return response.data;
+    },
+
+    restoreFolder: async (id: string) => {
+        const response = await api.post(`/file-manager/folder/${id}/restore`);
+        return response.data;
+    },
 };

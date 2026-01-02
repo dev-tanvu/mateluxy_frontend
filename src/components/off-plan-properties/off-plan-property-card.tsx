@@ -7,23 +7,27 @@ import { MapPin, BedDouble, Bath, Maximize2, Phone, ShieldCheck, Copy, Eye, Gaug
 import { OffPlanProperty } from '@/lib/services/off-plan-property.service';
 import { Agent } from '@/lib/services/agent.service';
 import { calculatePropertyScore, getScoreColor } from '@/lib/utils/property-scoring';
+import { cn } from '@/lib/utils';
 
 interface OffPlanPropertyCardProps {
     property: OffPlanProperty;
+    onClick?: (property: OffPlanProperty) => void;
+    isSelected?: boolean;
 }
 
-export function OffPlanPropertyCard({ property }: OffPlanPropertyCardProps) {
+export function OffPlanPropertyCard({ property, onClick, isSelected }: OffPlanPropertyCardProps) {
     const [showPhoneMenu, setShowPhoneMenu] = React.useState(false);
+    // ... existing hooks ...
     const score = calculatePropertyScore(property);
     const scoreColor = getScoreColor(score);
 
     const handleWhatsAppClick = () => {
-        // Placeholder for future implementation when we have agent details
+        // Placeholder
         console.log("WhatsApp click - Agent details not available yet");
     };
 
     const handlePhoneClick = () => {
-        // Placeholder for future implementation
+        // Placeholder
         console.log("Phone click - Agent details not available yet");
     };
 
@@ -33,21 +37,28 @@ export function OffPlanPropertyCard({ property }: OffPlanPropertyCardProps) {
     };
 
     const handleCardClick = (e: React.MouseEvent) => {
-        // Don't navigate if clicking on buttons or interactive elements
         const target = e.target as HTMLElement;
         if (target.closest('button') || target.closest('a') || target.closest('[role="button"]')) {
             return;
         }
-        // Navigate to single property page (assuming route exists or will be created)
-        // Using window.location for now as useRouter fits better in client components 
-        // but we are already in a client component.
-        // Let's use Link wrapper logic or just router.push if we add router.
-        // Since we didn't import useRouter, let's add it.
+
+        if (onClick) {
+            onClick(property);
+            return;
+        }
+
+        // Default navigation handled by Link overlay, but we might want to prevent it if selecting
     };
 
     return (
-        <div className="bg-white rounded-[16px] border border-[1px] border-[#E6E6E6] hover:shadow-lg transition-all duration-300 group flex flex-col w-full relative cursor-pointer">
-            <Link href={`/off-plan/${property.id}`} className="absolute inset-0 z-0" />
+        <div
+            className={cn(
+                "bg-white rounded-[16px] border transition-all duration-300 group flex flex-col w-full relative cursor-pointer",
+                isSelected ? "border-[#00AAFF] ring-2 ring-[#00AAFF]/20" : "border-[#E6E6E6] hover:shadow-lg"
+            )}
+            onClick={handleCardClick}
+        >
+            {!onClick && <Link href={`/off-plan/${property.id}`} className="absolute inset-0 z-0" />}
 
             {/* Edit Button - Always Visible, High Z-Index to be clickable over the card link */}
             <Link
