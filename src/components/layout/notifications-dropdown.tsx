@@ -307,6 +307,14 @@ export function NotificationsDropdown() {
         setIsSidebarOpen(true);
     };
 
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    if (!mounted) return null;
+
     return (
         <>
             <DropdownMenu open={isDropdownOpen} onOpenChange={handleOpenChange}>

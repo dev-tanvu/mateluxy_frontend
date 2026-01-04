@@ -14,6 +14,8 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useFileOpener, getFileType } from '@/components/file-opener';
 
+import { FileManagerSkeleton } from '@/components/skeletons/file-manager-skeleton';
+
 // Helper Functions
 function formatSize(bytes: number) {
     if (bytes === 0) return '0 B';
@@ -41,6 +43,10 @@ export default function FileManagerPage() {
         queryKey: ['files', 'root'],
         queryFn: () => fileManagerService.getContents(),
     });
+
+    if (isContentsLoading) {
+        return <FileManagerSkeleton />;
+    }
 
     const { data: statsData } = useQuery({
         queryKey: ['storage-stats'],
