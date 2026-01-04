@@ -9,7 +9,7 @@ const libraries: ("places")[] = ["places"];
 
 interface AddressAutocompleteProps {
     value: string;
-    onChange: (address: string, lat: number, lng: number) => void;
+    onChange: (address: string, lat: number | null, lng: number | null) => void;
     error?: string;
 }
 
@@ -44,7 +44,10 @@ export function AddressAutocomplete({ value, onChange, error }: AddressAutocompl
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setInputValue(e.target.value);
+        const newValue = e.target.value;
+        setInputValue(newValue);
+        // Allow manual entry. Pass null for coordinates since we don't know them.
+        onChange(newValue, null, null);
     };
 
     if (!isLoaded) {

@@ -223,7 +223,6 @@ export function CreateNocPageContent({ onNocCreated, onBack }: CreateNocPageCont
             formDataToSend.append('propertyType', formData.propertyType);
             formDataToSend.append('buildingProjectName', formData.buildingProjectName);
             formDataToSend.append('community', formData.community);
-            formDataToSend.append('community', formData.community);
             formDataToSend.append('streetName', formData.streetName);
             if (formData.location) formDataToSend.append('location', formData.location);
             if (formData.latitude) formDataToSend.append('latitude', formData.latitude.toString());
