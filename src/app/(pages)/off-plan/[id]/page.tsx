@@ -132,6 +132,9 @@ export default function OffPlanPropertyDetailPage() {
         <PropertyDetailView
             data={transformedData as any}
             onEdit={() => router.push(`/off-plan/${propertyId}/edit`)}
+            onPublish={() => { }}
+            onUnpublish={() => { }}
+            isPublishing={false}
         />
     );
 }
