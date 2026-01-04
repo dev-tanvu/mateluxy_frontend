@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Source_Sans_3 } from 'next/font/google';
 
 const sourceSans = Source_Sans_3({ subsets: ['latin'] });
@@ -10,11 +10,17 @@ import {
     Plus, Upload, Trash2, ChevronRight, RotateCcw,
     MoreHorizontal
 } from 'lucide-react';
+import { toast } from 'sonner';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useFileOpener, getFileType } from '@/components/file-opener';
 
 import { FileManagerSkeleton } from '@/components/skeletons/file-manager-skeleton';
+import { FolderCardSkeleton, CategorySkeleton, TableRowSkeleton, StorageStatsSkeleton } from '@/components/file-manager/skeletons';
+import { AddNewDropdown } from '@/components/file-manager/add-new-dropdown';
+import { FileUploadModal } from '@/components/file-manager/upload-file-modal';
+import { useClipboard } from '@/context/clipboard-context';
+import { ContextMenu } from '@/components/file-manager/context-menu';
 
 // Helper Functions
 function formatSize(bytes: number) {
@@ -27,8 +33,11 @@ function formatSize(bytes: number) {
 
 function getPercentage(value: number, total: number) {
     if (total === 0) return 0;
-    return Math.round((value / total) * 100);
+    const pct = (value / total) * 100;
+    return pct < 1 ? parseFloat(pct.toFixed(2)) : Math.round(pct);
 }
+
+import { FolderProgress } from '@/components/file-manager/folder-progress';
 
 export default function FileManagerPage() {
     const router = useRouter();
@@ -36,7 +45,42 @@ export default function FileManagerPage() {
     const { openFile } = useFileOpener();
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
+    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [showAllCategories, setShowAllCategories] = useState(false);
+    const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+    const [newFolderName, setNewFolderName] = useState('New Folder');
+    const folderInputRef = useRef<HTMLInputElement>(null);
+
+    // Global Clipboard Context
+    const { clipboard, copyToClipboard, cutToClipboard, clearClipboard } = useClipboard();
+
+    // Context Menu State
+    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, type: 'file' | 'folder' | 'empty', target: any } | null>(null);
+
+    // Rename state
+    const [renamingItem, setRenamingItem] = useState<{ id: string, name: string, type: 'file' | 'folder' } | null>(null);
+    const renameInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (renamingItem?.id && renameInputRef.current) {
+            const timer = setTimeout(() => {
+                renameInputRef.current?.focus();
+                renameInputRef.current?.select();
+            }, 50);
+            return () => clearTimeout(timer);
+        }
+    }, [renamingItem?.id]);
+
+    useEffect(() => {
+        if (isCreatingFolder && folderInputRef.current) {
+            // Use setTimeout to ensure focus happens after any dropdown cleanup/focus restoration
+            const timer = setTimeout(() => {
+                folderInputRef.current?.focus();
+                folderInputRef.current?.select();
+            }, 50);
+            return () => clearTimeout(timer);
+        }
+    }, [isCreatingFolder]);
 
     // Queries
     const { data: contentsData, isLoading: isContentsLoading } = useQuery({
@@ -44,14 +88,12 @@ export default function FileManagerPage() {
         queryFn: () => fileManagerService.getContents(),
     });
 
-
-
-    const { data: statsData } = useQuery({
+    const { data: statsData, isLoading: isStatsLoading } = useQuery({
         queryKey: ['storage-stats'],
         queryFn: fileManagerService.getStats,
     });
 
-    const { data: recentData } = useQuery({
+    const { data: recentData, isLoading: isRecentLoading } = useQuery({
         queryKey: ['recent-files'],
         queryFn: fileManagerService.getRecent,
     });
@@ -64,41 +106,397 @@ export default function FileManagerPage() {
     // Mutations
     const createFolderMutation = useMutation({
         mutationFn: (name: string) => fileManagerService.createFolder(name),
-        onSuccess: () => {
-            setIsCreateFolderOpen(false);
+        onMutate: async (newFolderName) => {
+            // Cancel any outgoing refetches
+            await queryClient.cancelQueries({ queryKey: ['files', 'root'] });
+
+            // Snapshot the previous value
+            const previousData = queryClient.getQueryData(['files', 'root']);
+
+            // Optimistically update to the new value
+            queryClient.setQueryData(['files', 'root'], (old: any) => ({
+                ...old,
+                folders: [
+                    {
+                        id: 'temp-' + Date.now(),
+                        name: newFolderName,
+                        isOptimistic: true
+                    },
+                    ...(old?.folders || [])
+                ]
+            }));
+
+            // Reset creation state immediately for smooth transition
+            setIsCreatingFolder(false);
+            setNewFolderName('New Folder');
+
+            return { previousData };
+        },
+        onError: (err, newFolderName, context) => {
+            queryClient.setQueryData(['files', 'root'], context?.previousData);
+        },
+        onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['files', 'root'] });
         },
     });
 
-    const uploadFileMutation = useMutation({
-        mutationFn: (file: File) => fileManagerService.uploadFile(file),
-        onSuccess: () => {
+    const restoreFolderMutation = useMutation({
+        mutationFn: (id: string) => fileManagerService.restoreFolder(id),
+        onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['files', 'root'] });
             queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
-            queryClient.invalidateQueries({ queryKey: ['recent-files'] });
-        },
-    });
-
-    const deleteFileMutation = useMutation({
-        mutationFn: fileManagerService.deleteFile,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['files'] });
-            queryClient.invalidateQueries({ queryKey: ['recent-files'] });
             queryClient.invalidateQueries({ queryKey: ['deleted-items'] });
-            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
         },
     });
 
     const restoreFileMutation = useMutation({
-        mutationFn: fileManagerService.restoreFile,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['files'] });
+        mutationFn: (id: string) => fileManagerService.restoreFile(id),
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', 'root'] });
+            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
             queryClient.invalidateQueries({ queryKey: ['recent-files'] });
             queryClient.invalidateQueries({ queryKey: ['deleted-items'] });
+        },
+    });
+
+    const deleteFolderMutation = useMutation({
+        mutationFn: (id: string) => fileManagerService.deleteFolder(id),
+        onMutate: async (id) => {
+            await queryClient.cancelQueries({ queryKey: ['files', 'root'] });
+            const previousData = queryClient.getQueryData(['files', 'root']);
+            queryClient.setQueryData(['files', 'root'], (old: any) => ({
+                ...old,
+                folders: old?.folders?.filter((f: any) => f.id !== id) || []
+            }));
+            return { previousData };
+        },
+        onError: (err, id, context) => {
+            queryClient.setQueryData(['files', 'root'], context?.previousData);
+        },
+        onSettled: (data, error, id) => {
+            queryClient.invalidateQueries({ queryKey: ['files', 'root'] });
+            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
+            queryClient.invalidateQueries({ queryKey: ['deleted-items'] });
+            if (!error) {
+                toast.success('Folder moved to Trash', {
+                    action: {
+                        label: 'Undo',
+                        onClick: () => restoreFolderMutation.mutate(id)
+                    }
+                });
+            }
+        },
+    });
+
+    const deleteFileMutation = useMutation({
+        mutationFn: (id: string) => fileManagerService.deleteFile(id),
+        onMutate: async (id) => {
+            await queryClient.cancelQueries({ queryKey: ['files', 'root'] });
+            await queryClient.cancelQueries({ queryKey: ['recent-files'] });
+
+            const previousData = queryClient.getQueryData(['files', 'root']);
+            const previousRecent = queryClient.getQueryData(['recent-files']);
+
+            queryClient.setQueryData(['files', 'root'], (old: any) => ({
+                ...old,
+                files: old?.files?.filter((f: any) => f.id !== id) || []
+            }));
+
+            queryClient.setQueryData(['recent-files'], (old: any) => {
+                const currentFiles = Array.isArray(old) ? old : [];
+                return currentFiles.filter((f: any) => f.id !== id);
+            });
+
+            return { previousData, previousRecent };
+        },
+        onError: (err, id, context) => {
+            queryClient.setQueryData(['files', 'root'], context?.previousData);
+            queryClient.setQueryData(['recent-files'], context?.previousRecent);
+        },
+        onSettled: (data, error, id) => {
+            queryClient.invalidateQueries({ queryKey: ['files', 'root'] });
+            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
+            queryClient.invalidateQueries({ queryKey: ['recent-files'] });
+            queryClient.invalidateQueries({ queryKey: ['deleted-items'] });
+            if (!error) {
+                toast.success('File moved to Trash', {
+                    action: {
+                        label: 'Undo',
+                        onClick: () => restoreFileMutation.mutate(id)
+                    }
+                });
+            }
+        },
+    });
+
+    const renameFolderMutation = useMutation({
+        mutationFn: ({ id, name }: { id: string, name: string }) => fileManagerService.renameFolder(id, name),
+        onMutate: async ({ id, name }) => {
+            await queryClient.cancelQueries({ queryKey: ['files', 'root'] });
+            const previousData = queryClient.getQueryData(['files', 'root']);
+            queryClient.setQueryData(['files', 'root'], (old: any) => ({
+                ...old,
+                folders: old?.folders?.map((f: any) => f.id === id ? { ...f, name } : f) || []
+            }));
+            return { previousData };
+        },
+        onError: (err, { id, name }, context) => {
+            queryClient.setQueryData(['files', 'root'], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', 'root'] });
+        },
+    });
+
+    const renameFileMutation = useMutation({
+        mutationFn: ({ id, name }: { id: string, name: string }) => fileManagerService.renameFile(id, name),
+        onMutate: async ({ id, name }) => {
+            await queryClient.cancelQueries({ queryKey: ['files', 'root'] });
+            await queryClient.cancelQueries({ queryKey: ['recent-files'] });
+
+            const previousData = queryClient.getQueryData(['files', 'root']);
+            const previousRecent = queryClient.getQueryData(['recent-files']);
+
+            queryClient.setQueryData(['files', 'root'], (old: any) => ({
+                ...old,
+                files: old?.files?.map((f: any) => f.id === id ? { ...f, name } : f) || []
+            }));
+
+            queryClient.setQueryData(['recent-files'], (old: any) => {
+                const currentFiles = Array.isArray(old) ? old : [];
+                return currentFiles.map((f: any) => f.id === id ? { ...f, name } : f);
+            });
+
+            return { previousData, previousRecent };
+        },
+        onError: (err, { id, name }, context) => {
+            queryClient.setQueryData(['files', 'root'], context?.previousData);
+            queryClient.setQueryData(['recent-files'], context?.previousRecent);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', 'root'] });
+            queryClient.invalidateQueries({ queryKey: ['recent-files'] });
+        },
+    });
+
+    const moveFileMutation = useMutation({
+        mutationFn: ({ id, targetFolderId }: { id: string, targetFolderId: string | null }) => fileManagerService.moveFile(id, targetFolderId),
+        onMutate: async ({ id, targetFolderId }) => {
+            await queryClient.cancelQueries({ queryKey: ['files', 'root'] });
+            await queryClient.cancelQueries({ queryKey: ['recent-files'] });
+            const previousData = queryClient.getQueryData(['files', 'root']);
+            const previousRecent = queryClient.getQueryData(['recent-files']);
+
+            // If moving to a folder (not root), remove from current root view
+            if (targetFolderId !== null) {
+                queryClient.setQueryData(['files', 'root'], (old: any) => ({
+                    ...old,
+                    files: old?.files?.filter((f: any) => f.id !== id) || []
+                }));
+                queryClient.setQueryData(['recent-files'], (old: any) => {
+                    const currentFiles = Array.isArray(old) ? old : [];
+                    return currentFiles.filter((f: any) => f.id !== id);
+                });
+            }
+            return { previousData, previousRecent };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['files', 'root'], context?.previousData);
+            queryClient.setQueryData(['recent-files'], context?.previousRecent);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', 'root'] });
+            queryClient.invalidateQueries({ queryKey: ['recent-files'] });
+        },
+    });
+
+    const copyFileMutation = useMutation({
+        mutationFn: ({ id, targetFolderId }: { id: string, targetFolderId: string | null }) => fileManagerService.copyFile(id, targetFolderId),
+        onMutate: async ({ id, targetFolderId }) => {
+            await queryClient.cancelQueries({ queryKey: ['files', 'root'] });
+            const previousData = queryClient.getQueryData(['files', 'root']);
+
+            // If copying to root, show optimistic item
+            if (targetFolderId === null) {
+                const sourceFile = (previousData as any)?.files?.find((f: any) => f.id === id);
+                if (sourceFile) {
+                    const optimisticFile = {
+                        ...sourceFile,
+                        id: 'temp-' + Date.now(),
+                        name: sourceFile.name + ' (Copy)',
+                        isOptimistic: true
+                    };
+                    queryClient.setQueryData(['files', 'root'], (old: any) => ({
+                        ...old,
+                        files: [optimisticFile, ...(old?.files || [])]
+                    }));
+                }
+            }
+            return { previousData };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['files', 'root'], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', 'root'] });
             queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
         },
     });
 
+    const moveFolderMutation = useMutation({
+        mutationFn: ({ id, targetParentId }: { id: string, targetParentId: string | null }) => fileManagerService.moveFolder(id, targetParentId),
+        onMutate: async ({ id, targetParentId }) => {
+            await queryClient.cancelQueries({ queryKey: ['files', 'root'] });
+            const previousData = queryClient.getQueryData(['files', 'root']);
+
+            // If moving to another folder, remove from current view
+            if (targetParentId !== null) {
+                queryClient.setQueryData(['files', 'root'], (old: any) => ({
+                    ...old,
+                    folders: old?.folders?.filter((f: any) => f.id !== id) || []
+                }));
+            }
+            return { previousData };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['files', 'root'], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', 'root'] });
+        },
+    });
+
+    const copyFolderMutation = useMutation({
+        mutationFn: ({ id, targetParentId }: { id: string, targetParentId: string | null }) => fileManagerService.copyFolder(id, targetParentId),
+        onMutate: async ({ id, targetParentId }) => {
+            await queryClient.cancelQueries({ queryKey: ['files', 'root'] });
+            const previousData = queryClient.getQueryData(['files', 'root']);
+
+            // If copying to root, show optimistic folder
+            if (targetParentId === null) {
+                const sourceFolder = (previousData as any)?.folders?.find((f: any) => f.id === id);
+                if (sourceFolder) {
+                    const optimisticFolder = {
+                        ...sourceFolder,
+                        id: 'temp-' + Date.now(),
+                        name: sourceFolder.name + ' (Copy)',
+                        isOptimistic: true
+                    };
+                    queryClient.setQueryData(['files', 'root'], (old: any) => ({
+                        ...old,
+                        folders: [optimisticFolder, ...(old?.folders || [])]
+                    }));
+                }
+            }
+            return { previousData };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['files', 'root'], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', 'root'] });
+            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
+        },
+    });
+
+    const handleContextMenu = (e: React.MouseEvent, type: 'file' | 'folder' | 'empty', target: any) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setContextMenu({ x: e.clientX, y: e.clientY, type, target });
+    };
+
+    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste') => {
+        if (!contextMenu) return;
+
+        const { type, target } = contextMenu;
+        setContextMenu(null);
+
+        switch (action) {
+            case 'copy':
+                copyToClipboard(type as any, target);
+                break;
+            case 'cut':
+                cutToClipboard(type as any, target);
+                break;
+            case 'rename':
+                setRenamingItem({ id: target.id, name: target.name, type: type as any });
+                break;
+            case 'delete':
+                if (type === 'folder') deleteFolderMutation.mutate(target.id);
+                else deleteFileMutation.mutate(target.id);
+                break;
+            case 'paste':
+                if (clipboard) {
+                    const targetFolderId = type === 'folder' ? target.id : null;
+                    if (clipboard.action === 'cut') {
+                        if (clipboard.type === 'folder') moveFolderMutation.mutate({ id: clipboard.item.id, targetParentId: targetFolderId });
+                        else moveFileMutation.mutate({ id: clipboard.item.id, targetFolderId: targetFolderId });
+                        clearClipboard();
+                    } else {
+                        if (clipboard.type === 'folder') copyFolderMutation.mutate({ id: clipboard.item.id, targetParentId: targetFolderId });
+                        else copyFileMutation.mutate({ id: clipboard.item.id, targetFolderId: targetFolderId });
+                    }
+                }
+                break;
+        }
+    };
+
+    const handleRenameSubmit = () => {
+        if (renamingItem) {
+            if (renamingItem.type === 'folder') {
+                renameFolderMutation.mutate({ id: renamingItem.id, name: renamingItem.name });
+            } else {
+                renameFileMutation.mutate({ id: renamingItem.id, name: renamingItem.name });
+            }
+            setRenamingItem(null);
+        }
+    };
+
+    const uploadFileMutation = useMutation({
+        mutationFn: (file: File) => fileManagerService.uploadFile(file),
+        onMutate: async (newFile) => {
+            // Cancel outgoing queries
+            await queryClient.cancelQueries({ queryKey: ['files', 'root'] });
+            await queryClient.cancelQueries({ queryKey: ['recent-files'] });
+
+            // Snapshot previous values
+            const previousFiles = queryClient.getQueryData(['files', 'root']);
+            const previousRecent = queryClient.getQueryData(['recent-files']);
+
+            const optimisticFile = {
+                id: 'temp-' + Date.now(),
+                name: newFile.name,
+                size: newFile.size,
+                mimeType: newFile.type,
+                url: '',
+                isOptimistic: true,
+                updatedAt: new Date().toISOString()
+            };
+
+            // Update root files cache
+            queryClient.setQueryData(['files', 'root'], (old: any) => ({
+                ...old,
+                files: [optimisticFile, ...(old?.files || [])]
+            }));
+
+            // Update recent files cache
+            queryClient.setQueryData(['recent-files'], (old: any) => {
+                const currentFiles = Array.isArray(old) ? old : [];
+                return [optimisticFile, ...currentFiles];
+            });
+
+            return { previousFiles, previousRecent };
+        },
+        onError: (err, newFile, context) => {
+            queryClient.setQueryData(['files', 'root'], context?.previousFiles);
+            queryClient.setQueryData(['recent-files'], context?.previousRecent);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', 'root'] });
+            queryClient.invalidateQueries({ queryKey: ['recent-files'] });
+            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
+        },
+    });
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files?.[0]) {
@@ -151,15 +549,6 @@ export default function FileManagerPage() {
         })
         : recentFiles;
 
-    const restoreFolderMutation = useMutation({
-        mutationFn: fileManagerService.restoreFolder,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['files'] });
-            queryClient.invalidateQueries({ queryKey: ['recent-files'] });
-            queryClient.invalidateQueries({ queryKey: ['deleted-items'] });
-            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
-        },
-    });
 
     const getFileIconPath = (name: string, mimeType: string) => {
         const ext = (name || '').split('.').pop()?.toLowerCase() || '';
@@ -215,66 +604,139 @@ export default function FileManagerPage() {
         return ext || 'FILE';
     };
 
-    if (isContentsLoading) {
-        return <FileManagerSkeleton />;
-    }
+    const handleCreateFolder = async (e?: React.FormEvent) => {
+        e?.preventDefault();
+        if (newFolderName.trim() && !createFolderMutation.isPending) {
+            createFolderMutation.mutate(newFolderName);
+        }
+    };
+
+    const cancelCreateFolder = () => {
+        setIsCreatingFolder(false);
+        setNewFolderName('New Folder');
+    };
+
+    // Helper for random color based on ID
+    const getFolderHue = (id: string) => {
+        let hash = 0;
+        for (let i = 0; i < id.length; i++) {
+            hash = id.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return Math.abs(hash % 360);
+    };
 
     return (
         <div className="flex bg-[#F2F7FA] min-h-screen">
-
-            {/* Main Content Area */}
-            <div className="flex-1 overflow-auto p-12 pr-8">
-
+            {/* Main Content Area Wrapper */}
+            <div
+                className="flex-1 overflow-auto p-12 pr-8"
+                onContextMenu={(e) => {
+                    // Check if clicking on a file/folder item by traversing up from target
+                    const target = e.target as HTMLElement;
+                    const isOnItem = target.closest('[data-file-item]') || target.closest('[data-folder-item]');
+                    if (!isOnItem) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleContextMenu(e, 'empty', null);
+                    }
+                }}
+            >
                 {/* Header */}
                 <div className="flex items-center justify-between mb-10">
                     <h1 className={`text-[24px] font-semibold text-[#1A1A1A] ${sourceSans.className}`}>Folders</h1>
                     <div className="flex gap-4">
-                        <input
-                            type="file"
-                            id="file-upload"
-                            className="hidden"
-                            onChange={handleFileUpload}
+                        <AddNewDropdown
+                            onCreateFolder={() => setIsCreatingFolder(true)}
+                            onShowUploadModal={() => setIsUploadModalOpen(true)}
                         />
-
-                        <button
-                            onClick={() => document.getElementById('file-upload')?.click()}
-                            className="flex items-center gap-2 bg-[#E1F5FE] text-[#00AAFF] px-6 py-3 rounded-xl font-semibold hover:bg-[#B3E5FC] transition-colors"
-                        >
-                            <Plus className="w-5 h-5" />
-                            Add new
-                        </button>
                     </div>
                 </div>
 
-                {/* Folders List - Horizontal Scroll or Grid */}
+                {/* Folders List */}
                 <div className="grid grid-cols-3 gap-6 mb-12 relative">
-                    {folders.slice(0, 3).map((folder: any) => {
-                        const hue = (folder.id.split('').reduce((acc: any, char: any) => acc + char.charCodeAt(0), 0) * 137) % 360;
-
-                        return (
-                            <div
-                                key={folder.id}
-                                onClick={() => router.push(`/file-manager/folder/${folder.id}`)}
-                                className="bg-white rounded-[12px] p-5 flex items-center justify-between cursor-pointer hover:shadow-lg transition-all min-h-[120px]"
-                            >
-                                <div className="flex flex-col justify-between h-full gap-3">
-                                    <Image
-                                        src="/svg/folder_icon.svg"
-                                        width={44}
-                                        height={44}
-                                        alt="Folder"
-                                        style={{ filter: `hue-rotate(${hue}deg)` }}
-                                    />
-                                    <div>
-                                        <h3 className="font-bold text-[15px] truncate text-[#1A1A1A] max-w-[120px]" title={folder.name}>{folder.name}</h3>
-                                        <p className="text-[#8F9BB3] text-[12px] mt-1">
-                                            {formatSize(folder.size)} <span className="text-[#8F9BB3]">({folder._count?.files || 0} files, {folder._count?.children || 0} folders)</span>
-                                        </p>
-                                    </div>
+                    {/* Inline Creation Item */}
+                    {isCreatingFolder && (
+                        <div className={`bg-white rounded-[12px] p-5 flex items-center justify-between cursor-pointer ring-2 ring-[#00AAFF] transition-all min-h-[120px] ${createFolderMutation.isPending ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <div className="flex flex-col justify-between h-full gap-3 w-full">
+                                <Image
+                                    src="/svg/folder_icon.svg"
+                                    width={44}
+                                    height={44}
+                                    alt="Folder"
+                                />
+                                <div className="w-full">
+                                    <form onSubmit={handleCreateFolder}>
+                                        <input
+                                            ref={folderInputRef}
+                                            className="font-bold text-[15px] w-full bg-transparent border-none focus:outline-none text-[#1A1A1A]"
+                                            value={newFolderName}
+                                            onChange={(e) => setNewFolderName(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') handleCreateFolder();
+                                                if (e.key === 'Escape') cancelCreateFolder();
+                                            }}
+                                        />
+                                    </form>
                                 </div>
                             </div>
-                        );
-                    })}
+                        </div>
+                    )}
+
+                    {isContentsLoading ? (
+                        [1, 2, 3].map((i) => <FolderCardSkeleton key={i} />)
+                    ) : (
+                        folders.slice(0, 3).map((folder: any) => {
+                            const hue = getFolderHue(folder.id);
+                            return (
+                                <div
+                                    key={folder.id}
+                                    data-folder-item
+                                    onClick={() => !folder.isOptimistic && router.push(`/file-manager/folder/${folder.id}`)}
+                                    onContextMenu={(e) => handleContextMenu(e, 'folder', folder)}
+                                    className={`bg-white rounded-[12px] p-5 relative transition-all min-h-[120px] ${folder.isOptimistic ? 'opacity-50 cursor-default' : 'cursor-pointer hover:shadow-lg'}`}
+                                >
+                                    <div className="flex flex-col h-full gap-3 min-w-0 pr-12">
+                                        <Image
+                                            src="/svg/folder_icon.svg"
+                                            alt="folder"
+                                            width={48}
+                                            height={48}
+                                            style={{ filter: `hue-rotate(${hue}deg)` }}
+                                        />
+                                        {renamingItem?.id === folder.id ? (
+                                            <input
+                                                ref={renameInputRef}
+                                                type="text"
+                                                value={renamingItem?.name || ''}
+                                                onChange={(e) => setRenamingItem(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') handleRenameSubmit();
+                                                    if (e.key === 'Escape') setRenamingItem(null);
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                                onContextMenu={(e) => e.stopPropagation()}
+                                                className="w-full bg-white border border-[#00AAFF] rounded px-2 py-1 text-[15px] font-bold text-[#1A1A1A] outline-none"
+                                            />
+                                        ) : (
+                                            <>
+                                                <h3 className="font-bold text-[#1A1A1A] text-[15px] truncate" title={folder.name}>
+                                                    {folder.name}
+                                                </h3>
+                                                {!folder.isOptimistic && (
+                                                    <p className="text-[#8F9BB3] text-[12px] mt-1">
+                                                        {formatSize(folder.size)} ({folder._count?.files || 0} Files, {folder._count?.children || 0} Folders)
+                                                    </p>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                    <div className="absolute bottom-4 right-4">
+                                        <FolderProgress percentage={getPercentage(folder.size, stats.totalUsed)} />
+                                    </div>
+                                </div>
+                            );
+                        })
+                    )}
 
                     {/* View All Arrow */}
                     <button
@@ -285,8 +747,8 @@ export default function FileManagerPage() {
                     </button>
 
                     {folders.length === 0 && !isContentsLoading && (
-                        <div className="col-span-3 py-10 text-center text-gray-400 bg-white rounded-2xl border border-dashed border-gray-200">
-                            No folders found.
+                        <div className="col-span-3 py-10 text-center text-[#8F9BB3]">
+                            The folder is empty
                         </div>
                     )}
                 </div>
@@ -295,27 +757,31 @@ export default function FileManagerPage() {
                 <div className="mb-12">
                     <h2 className="text-[20px] font-bold mb-6 text-[#1A1A1A]">Quick Access</h2>
                     <div className="flex gap-6 overflow-x-auto pb-4">
-                        {[
-                            { label: 'Images', icon: '/svg/image_icon.svg' },
-                            { label: 'Videos', icon: '/svg/videos_icon.svg' },
-                            { label: 'Audio', icon: '/svg/audios_icon.svg' },
-                            { label: 'Archives', label2: 'Archieves', icon: '/svg/archieves_icon.svg' }, // Typo in label2 matches UI text if needed
-                            { label: 'Documents', icon: '/svg/files_icon.svg' },
-                            { label: 'Fonts', icon: '/svg/fonts_icon.svg' },
-                        ].map((item) => (
-                            <div
-                                key={item.label}
-                                onClick={() => router.push(`/file-manager/category/${item.label.toLowerCase()}`)}
-                                className={`flex flex-col items-center gap-3 cursor-pointer group min-w-[80px]`}
-                            >
-                                <div className={`w-[70px] h-[70px] p-[15px] rounded-[10px] bg-white flex items-center justify-center transition-all ${selectedCategory === item.label ? 'ring-2 ring-[#00AAFF]' : ''}`}>
-                                    <Image src={item.icon} width={32} height={32} alt={item.label} />
+                        {isContentsLoading ? (
+                            [1, 2, 3, 4, 5, 6].map((i) => <CategorySkeleton key={i} />)
+                        ) : (
+                            [
+                                { label: 'Images', icon: '/svg/image_icon.svg' },
+                                { label: 'Videos', icon: '/svg/videos_icon.svg' },
+                                { label: 'Audio', icon: '/svg/audios_icon.svg' },
+                                { label: 'Archives', label2: 'Archieves', icon: '/svg/archieves_icon.svg' },
+                                { label: 'Documents', icon: '/svg/files_icon.svg' },
+                                { label: 'Fonts', icon: '/svg/fonts_icon.svg' },
+                            ].map((item) => (
+                                <div
+                                    key={item.label}
+                                    onClick={() => router.push(`/file-manager/category/${item.label.toLowerCase()}`)}
+                                    className={`flex flex-col items-center gap-3 cursor-pointer group min-w-[80px]`}
+                                >
+                                    <div className={`w-[70px] h-[70px] p-[15px] rounded-[10px] bg-white flex items-center justify-center transition-all ${selectedCategory === item.label ? 'ring-2 ring-[#00AAFF]' : ''}`}>
+                                        <Image src={item.icon} width={32} height={32} alt={item.label} />
+                                    </div>
+                                    <span className={`font-semibold text-[14px] ${selectedCategory === item.label ? 'text-[#00AAFF]' : 'text-[#1A1A1A]'}`}>
+                                        {item.label2 || item.label}
+                                    </span>
                                 </div>
-                                <span className={`font-semibold text-[14px] ${selectedCategory === item.label ? 'text-[#00AAFF]' : 'text-[#1A1A1A]'}`}>
-                                    {item.label2 || item.label}
-                                </span>
-                            </div>
-                        ))}
+                            ))
+                        )}
                     </div>
                 </div>
 
@@ -334,34 +800,64 @@ export default function FileManagerPage() {
                             </tr>
                         </thead>
                         <tbody className="text-[14px]">
-                            {filteredFiles.slice(0, 10).map((file: any) => (
-                                <tr
-                                    key={file.id}
-                                    className="group hover:bg-[#F9FAFC] transition-colors cursor-pointer border-b border-gray-50 last:border-0"
-                                    onClick={() => openFile({
-                                        url: file.url,
-                                        name: file.name,
-                                        type: getFileType(file.url)
-                                    })}
-                                >
-                                    <td className="py-4 pl-6 flex items-center gap-6">
-                                        <div className="min-w-[50px] min-h-[50px] w-[50px] h-[50px] flex items-center justify-center bg-[#F9FBFF] rounded-[16px]">
-                                            <div className="transform scale-75">
-                                                {getFileIcon(file.mimeType)}
+                            {isRecentLoading || isContentsLoading ? (
+                                [1, 2, 3, 4, 5].map((i) => (
+                                    <tr key={i}>
+                                        <td colSpan={4} className="py-2">
+                                            <TableRowSkeleton />
+                                        </td>
+                                    </tr>
+                                ))
+                            ) : (
+                                filteredFiles.slice(0, 10).map((file: any) => (
+                                    <tr
+                                        key={file.id}
+                                        data-file-item
+                                        onContextMenu={(e) => handleContextMenu(e, 'file', file)}
+                                        className={`group hover:bg-[#F2F7FA] transition-colors cursor-pointer ${file.isOptimistic ? 'opacity-50 pointer-events-none' : ''}`}
+                                        onClick={() => !file.isOptimistic && openFile({
+                                            url: file.url,
+                                            name: file.name,
+                                            type: getFileType(file.url)
+                                        })}
+                                    >
+                                        <td className="py-4 pl-6 flex items-center gap-4">
+                                            <div className="min-w-[50px] min-h-[50px] w-[50px] h-[50px] flex items-center justify-center bg-[#F9FBFF] rounded-[16px]">
+                                                <div className="transform scale-75">
+                                                    {getFileIcon(file.mimeType)}
+                                                </div>
                                             </div>
-                                        </div>
-                                        <span className="font-normal text-[#1A1A1A] text-[15px]">{file.name}</span>
-                                    </td>
-                                    <td className="py-4 text-center text-[#8F9BB3] font-medium">{new Date(file.updatedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                                    <td className="py-4 text-center text-[#8F9BB3] uppercase font-medium">{getFileTypeLabel(file.mimeType, file.name)}</td>
-                                    <td className="py-4 text-right pr-6 text-[#8F9BB3] font-medium">{formatSize(file.size)}</td>
-                                </tr>
-                            ))}
+                                            {renamingItem?.id === file.id ? (
+                                                <input
+                                                    ref={renameInputRef}
+                                                    type="text"
+                                                    value={renamingItem?.name || ''}
+                                                    onChange={(e) => setRenamingItem(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleRenameSubmit();
+                                                        if (e.key === 'Escape') setRenamingItem(null);
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    onContextMenu={(e) => e.stopPropagation()}
+                                                    className="bg-white border border-[#00AAFF] rounded px-2 py-1 text-[14px] font-medium text-[#1A1A1A] outline-none"
+                                                />
+                                            ) : (
+                                                <span className="font-normal text-[#1A1A1A] text-[15px] truncate max-w-[200px]" title={file.name}>
+                                                    {file.isOptimistic ? 'Saving...' : file.name}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="py-4 text-center text-[#8F9BB3] font-medium">{file.isOptimistic ? '-' : new Date(file.updatedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                                        <td className="py-4 text-center text-[#8F9BB3] uppercase font-medium">{getFileTypeLabel(file.mimeType, file.name)}</td>
+                                        <td className="py-4 text-right pr-6 text-[#8F9BB3] font-medium">{formatSize(file.size)}</td>
+                                    </tr>
+                                ))
+                            )}
                         </tbody>
                     </table>
                     {filteredFiles.length === 0 && (
                         <div className="py-20 text-center text-[#8F9BB3]">
-                            No files found.
+                            The folder is empty
                         </div>
                     )}
                 </div>
@@ -369,199 +865,177 @@ export default function FileManagerPage() {
 
             {/* Sidebar - Storage Usage */}
             <div className="w-[450px] pr-12 pb-12 flex flex-col sticky top-0 h-screen">
-                <div className="bg-white rounded-[24px] p-8 flex flex-col h-full shadow-sm overflow-hidden">
-                    <h2 className="text-[22px] font-bold mb-10 text-center text-[#1A1A1A]">Storage usage</h2>
-                    {/* Scrollable content area */}
-                    <div className="overflow-y-auto flex-1 pr-0 scrollbar-hide pb-4">
-                        {/* Storage Gauge (270-degree Arch Design) */}
-                        <div className="relative w-64 h-64 mx-auto mb-10 flex items-center justify-center">
-                            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 200 200">
-                                <defs>
-                                    <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                                        <stop offset="0%" stopColor={
-                                            stats.totalUsed < 10 * 1024 * 1024 * 1024 ? "#00AAFF" :
-                                                stats.totalUsed < 50 * 1024 * 1024 * 1024 ? "#FFC107" : "#D32F2F"
-                                        } />
-                                        <stop offset="100%" stopColor={
-                                            stats.totalUsed < 10 * 1024 * 1024 * 1024 ? "#00ECFF" :
-                                                stats.totalUsed < 50 * 1024 * 1024 * 1024 ? "#FFD54F" : "#EF5350"
-                                        } />
-                                    </linearGradient>
-                                </defs>
-                                {/* Background Arch (Track) */}
-                                <path
-                                    d="M 50 150 A 70 70 0 1 1 150 150"
-                                    fill="none"
-                                    stroke="#F2F7FA"
-                                    strokeWidth="16"
-                                    strokeLinecap="round"
-                                />
-                                {/* Full Progress Arch (Always "full" as requested) */}
-                                <path
-                                    d="M 50 150 A 70 70 0 1 1 150 150"
-                                    fill="none"
-                                    stroke="url(#gaugeGradient)"
-                                    strokeWidth="16"
-                                    strokeLinecap="round"
-                                />
-                            </svg>
-                            <div className="relative z-10 text-center flex flex-col items-center justify-center p-4">
-                                <span className={`text-[30px] font-medium text-[#1A1A1A] leading-tight ${sourceSans.className}`}>
-                                    {formatSize(stats.totalUsed)}
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* Categories */}
-                        <div className="space-y-6 mb-12">
-                            {(() => {
-                                const allCategories = [
-                                    { label: 'Images', size: stats.breakdown.images, color: '#FF5252', icon: '/svg/image_icon.svg' },
-                                    { label: 'Videos', size: stats.breakdown.video, color: '#448AFF', icon: '/svg/videos_icon.svg' },
-                                    { label: 'Audio', size: stats.breakdown.audio, color: '#FFB300', icon: '/svg/audios_icon.svg' },
-                                    { label: 'Archives', size: stats.breakdown.archives, color: '#7E57C2', icon: '/svg/archieves_icon.svg' },
-                                    { label: 'Documents', size: stats.breakdown.documents, color: '#00E676', icon: '/svg/files_icon.svg' },
-                                    { label: 'Fonts', size: stats.breakdown.fonts, color: '#FF7043', icon: '/svg/fonts_icon.svg' }
-                                ].sort((a, b) => b.size - a.size);
-
-                                const displayedCategories = showAllCategories ? allCategories : allCategories.slice(0, 3);
-                                const remainingCount = allCategories.length - 3;
-
-                                return (
-                                    <>
-                                        {displayedCategories.map((cat) => (
-                                            <div key={cat.label} className="flex items-center gap-4">
-                                                {/* Category Icon - Reduced size and no shadow */}
-                                                <div className="w-12 h-12 min-w-[48px] rounded-[12px] bg-[#F9FBFF] flex items-center justify-center border border-gray-50">
-                                                    <Image src={cat.icon} width={24} height={24} alt={cat.label} />
-                                                </div>
-
-                                                {/* Label + Progress Stack */}
-                                                <div className="flex-1">
-                                                    <div className="flex justify-between items-center mb-1.5">
-                                                        <span className="font-bold text-[#1A1A1A] text-[15px]">{cat.label}</span>
-                                                        <span className="font-bold text-[#1A1A1A] text-[14px]">{formatSize(cat.size)}</span>
-                                                    </div>
-                                                    <div className="h-2.5 bg-[#F2F7FA] rounded-full overflow-hidden">
-                                                        <div
-                                                            className="h-full rounded-full transition-all duration-500"
-                                                            style={{
-                                                                width: `${Math.min(100, (cat.size / (stats.totalUsed || 1)) * 100)}%`,
-                                                                backgroundColor: cat.color
-                                                            }}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-
-                                        {!showAllCategories && remainingCount > 0 && (
-                                            <button
-                                                onClick={() => setShowAllCategories(true)}
-                                                className="text-[#8F9BB3] text-[14px] font-bold pl-16 mt-2 hover:text-[#1A1A1A] transition-colors"
-                                            >
-                                                +{remainingCount} More
-                                            </button>
-                                        )}
-                                        {showAllCategories && allCategories.length > 3 && (
-                                            <button
-                                                onClick={() => setShowAllCategories(false)}
-                                                className="text-[#8F9BB3] text-[15px] font-bold pl-[94px] mt-2 hover:text-[#1A1A1A] transition-colors"
-                                            >
-                                                Show Less
-                                            </button>
-                                        )}
-                                    </>
-                                );
-                            })()}
-                        </div>
-
-                        {/* Recently Deleted Section */}
-                        <div className="mt-8">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-[20px] font-bold text-[#1A1A1A]">Recently deleted</h3>
-                                <button className="text-[#00AAFF] text-[15px] font-bold hover:underline">See all</button>
+                {isStatsLoading ? (
+                    <StorageStatsSkeleton />
+                ) : (
+                    <div className="bg-white rounded-[24px] p-8 flex flex-col h-full shadow-sm overflow-hidden">
+                        <h2 className="text-[22px] font-bold mb-10 text-center text-[#1A1A1A]">Storage usage</h2>
+                        {/* Scrollable content area */}
+                        <div className="overflow-y-auto flex-1 pr-0 scrollbar-hide pb-4">
+                            {/* Storage Gauge */}
+                            <div className="relative w-64 h-64 mx-auto mb-10 flex items-center justify-center">
+                                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 200 200">
+                                    <defs>
+                                        <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                            <stop offset="0%" stopColor={
+                                                stats.totalUsed < 10 * 1024 * 1024 * 1024 ? "#00AAFF" :
+                                                    stats.totalUsed < 50 * 1024 * 1024 * 1024 ? "#FFC107" : "#D32F2F"
+                                            } />
+                                            <stop offset="100%" stopColor={
+                                                stats.totalUsed < 10 * 1024 * 1024 * 1024 ? "#00ECFF" :
+                                                    stats.totalUsed < 50 * 1024 * 1024 * 1024 ? "#FFD54F" : "#EF5350"
+                                            } />
+                                        </linearGradient>
+                                    </defs>
+                                    <path
+                                        d="M 50 150 A 70 70 0 1 1 150 150"
+                                        fill="none"
+                                        stroke="#F2F7FA"
+                                        strokeWidth="16"
+                                        strokeLinecap="round"
+                                    />
+                                    <path
+                                        d="M 50 150 A 70 70 0 1 1 150 150"
+                                        fill="none"
+                                        stroke="url(#gaugeGradient)"
+                                        strokeWidth="16"
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
+                                <div className="relative z-10 text-center flex flex-col items-center justify-center p-4">
+                                    <span className={`text-[30px] font-medium text-[#1A1A1A] leading-tight ${sourceSans.className}`}>
+                                        {formatSize(stats.totalUsed)}
+                                    </span>
+                                </div>
                             </div>
 
-                            <div className="space-y-6">
+                            {/* Categories */}
+                            <div className="space-y-6 mb-12">
                                 {(() => {
-                                    const allDeleted = [
-                                        ...(deletedData?.files || []).map((f: any) => ({ ...f, type: 'file' })),
-                                        ...(deletedData?.folders || []).map((f: any) => ({ ...f, type: 'folder' }))
-                                    ].sort((a: any, b: any) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
+                                    const allCategories = [
+                                        { label: 'Images', size: stats.breakdown.images, color: '#FF5252', icon: '/svg/image_icon.svg' },
+                                        { label: 'Videos', size: stats.breakdown.video, color: '#448AFF', icon: '/svg/videos_icon.svg' },
+                                        { label: 'Audio', size: stats.breakdown.audio, color: '#FFB300', icon: '/svg/audios_icon.svg' },
+                                        { label: 'Archives', size: stats.breakdown.archives, color: '#7E57C2', icon: '/svg/archieves_icon.svg' },
+                                        { label: 'Documents', size: stats.breakdown.documents, color: '#00E676', icon: '/svg/files_icon.svg' },
+                                        { label: 'Fonts', size: stats.breakdown.fonts, color: '#FF7043', icon: '/svg/fonts_icon.svg' }
+                                    ].sort((a, b) => b.size - a.size);
 
-                                    const displayItems = allDeleted.slice(0, 2);
+                                    const displayedCategories = showAllCategories ? allCategories : allCategories.slice(0, 3);
+                                    const remainingCount = allCategories.length - 3;
 
-                                    if (displayItems.length === 0) {
-                                        return <div className="text-center text-[#8F9BB3] text-[14px] py-4">No deleted items</div>;
-                                    }
-
-                                    return displayItems.map((item: any) => (
-                                        <div key={item.id} className="flex justify-between items-center group">
-                                            <div className="flex items-center gap-4">
-                                                <div className="w-12 h-12 rounded-[16px] bg-[#F9FBFF] flex items-center justify-center shadow-sm border border-gray-50">
-                                                    <Image
-                                                        src={item.type === 'folder' ? '/svg/folder_icon.svg' : getFileIconPath(item.name, item.mimeType)}
-                                                        width={24}
-                                                        height={24}
-                                                        alt={item.name}
-                                                    />
+                                    return (
+                                        <>
+                                            {displayedCategories.map((cat) => (
+                                                <div key={cat.label} className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 min-w-[48px] rounded-[12px] bg-[#F9FBFF] flex items-center justify-center border border-gray-50">
+                                                        <Image src={cat.icon} width={24} height={24} alt={cat.label} />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="flex justify-between items-center mb-1.5">
+                                                            <span className="font-bold text-[#1A1A1A] text-[15px]">{cat.label}</span>
+                                                            <span className="font-bold text-[#1A1A1A] text-[14px]">{formatSize(cat.size)}</span>
+                                                        </div>
+                                                        <div className="h-2.5 bg-[#F2F7FA] rounded-full overflow-hidden">
+                                                            <div
+                                                                className="h-full rounded-full transition-all duration-500"
+                                                                style={{
+                                                                    width: `${Math.min(100, (cat.size / (stats.totalUsed || 1)) * 100)}%`,
+                                                                    backgroundColor: cat.color
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <span className="font-bold text-[15px] text-[#1A1A1A] truncate max-w-[150px]">{item.name}</span>
-                                            </div>
-                                            <button
-                                                onClick={() => item.id && (item.type === 'folder' ? restoreFolderMutation.mutate(item.id) : restoreFileMutation.mutate(item.id))}
-                                                className="w-10 h-10 flex items-center justify-center text-[#1A1A1A] hover:bg-[#F2F7FA] rounded-full transition-all"
-                                            >
-                                                <RotateCcw size={20} />
-                                            </button>
-                                        </div>
-                                    ));
+                                            ))}
+                                            {!showAllCategories && remainingCount > 0 && (
+                                                <button
+                                                    onClick={() => setShowAllCategories(true)}
+                                                    className="text-[#8F9BB3] text-[14px] font-bold pl-16 mt-2 hover:text-[#1A1A1A] transition-colors"
+                                                >
+                                                    +{remainingCount} More
+                                                </button>
+                                            )}
+                                            {showAllCategories && allCategories.length > 3 && (
+                                                <button
+                                                    onClick={() => setShowAllCategories(false)}
+                                                    className="text-[#8F9BB3] text-[15px] font-bold pl-[94px] mt-2 hover:text-[#1A1A1A] transition-colors"
+                                                >
+                                                    Show Less
+                                                </button>
+                                            )}
+                                        </>
+                                    );
                                 })()}
                             </div>
+
+                            {/* Recently Deleted Section */}
+                            <div className="mt-8">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-[20px] font-bold text-[#1A1A1A]">Recently deleted</h3>
+                                    <button
+                                        onClick={() => router.push('/file-manager/recycle-bin')}
+                                        className="text-[#00AAFF] text-[15px] font-bold hover:underline"
+                                    >
+                                        See all
+                                    </button>
+                                </div>
+                                <div className="space-y-6">
+                                    {(() => {
+                                        const allDeleted = [
+                                            ...(deletedData?.files || []).map((f: any) => ({ ...f, type: 'file' })),
+                                            ...(deletedData?.folders || []).map((f: any) => ({ ...f, type: 'folder' }))
+                                        ].sort((a: any, b: any) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
+
+                                        const displayItems = allDeleted.slice(0, 3);
+                                        if (displayItems.length === 0) return <div className="text-center text-[#8F9BB3] text-[14px] py-4">No deleted items</div>;
+
+                                        return displayItems.map((item: any) => (
+                                            <div key={item.id} className="flex justify-between items-center group">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-12 h-12 rounded-[16px] bg-[#F9FBFF] flex items-center justify-center border border-gray-50">
+                                                        <Image
+                                                            src={item.type === 'folder' ? '/svg/folder_icon.svg' : getFileIconPath(item.name, item.mimeType)}
+                                                            width={24}
+                                                            height={24}
+                                                            alt={item.name}
+                                                        />
+                                                    </div>
+                                                    <span className="font-bold text-[15px] text-[#1A1A1A] truncate max-w-[150px]">{item.name}</span>
+                                                </div>
+                                                <button
+                                                    onClick={() => item.id && (item.type === 'folder' ? restoreFolderMutation.mutate(item.id) : restoreFileMutation.mutate(item.id))}
+                                                    className="w-10 h-10 flex items-center justify-center text-[#1A1A1A] hover:bg-[#F2F7FA] rounded-full transition-all"
+                                                >
+                                                    <RotateCcw size={20} />
+                                                </button>
+                                            </div>
+                                        ));
+                                    })()}
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
             </div>
 
-            {/* Create Folder Modal */}
-            {isCreateFolderOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-white p-8 rounded-2xl w-[400px]">
-                        <h3 className="text-xl font-bold mb-6">Create New Folder</h3>
-                        <form
-                            onSubmit={(e) => {
-                                e.preventDefault();
-                                const formData = new FormData(e.currentTarget);
-                                const name = formData.get('folderName') as string;
-                                if (name) createFolderMutation.mutate(name);
-                            }}
-                        >
-                            <input
-                                name="folderName"
-                                type="text"
-                                placeholder="Folder Name"
-                                className="w-full bg-[#FAFBFF] border border-[#EDF1F7] rounded-xl px-4 py-3 mb-6 focus:outline-none focus:ring-2 focus:ring-[#00AAFF]/20"
-                                autoFocus
-                            />
-                            <div className="flex justify-end gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsCreateFolderOpen(false)}
-                                    className="px-6 py-2 text-gray-500 font-medium hover:bg-gray-100 rounded-lg transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-6 py-2 bg-[#00AAFF] text-white font-bold rounded-lg hover:bg-[#0090D9] transition-colors"
-                                >
-                                    Create
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+            <FileUploadModal
+                isOpen={isUploadModalOpen}
+                onClose={() => setIsUploadModalOpen(false)}
+                onUpload={(files) => {
+                    files.forEach(file => uploadFileMutation.mutate(file));
+                }}
+            />
+
+            {contextMenu && (
+                <ContextMenu
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    type={contextMenu.type}
+                    hasClipboard={!!clipboard}
+                    onClose={() => setContextMenu(null)}
+                    onAction={handleContextAction}
+                />
             )}
         </div>
     );

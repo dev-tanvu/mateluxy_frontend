@@ -4,6 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Toaster } from 'sonner';
 import { FileOpenerProvider, FileOpenerModals } from '@/components/file-opener';
+import { UploadProvider } from '@/components/upload-manager/upload-context';
+import { UploadStatusToast } from '@/components/upload-manager/upload-status-toast';
+import { ClipboardProvider } from '@/context/clipboard-context';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
     const [queryClient] = useState(() => new QueryClient({
@@ -29,10 +32,15 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
     return (
         <QueryClientProvider client={queryClient}>
-            <FileOpenerProvider>
-                {children}
-                <FileOpenerModals />
-            </FileOpenerProvider>
+            <UploadProvider>
+                <ClipboardProvider>
+                    <FileOpenerProvider>
+                        {children}
+                        <FileOpenerModals />
+                    </FileOpenerProvider>
+                </ClipboardProvider>
+                <UploadStatusToast />
+            </UploadProvider>
             <Toaster position="bottom-right" richColors />
         </QueryClientProvider>
     );

@@ -1,12 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fileManagerService } from '@/services/file-manager.service';
-import { ChevronLeft, Plus, MoreVertical, Upload, FolderPlus } from 'lucide-react';
+import { ChevronLeft, Plus, MoreVertical, Upload, MoreHorizontal } from 'lucide-react';
+import { toast } from 'sonner';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useFileOpener, getFileType } from '@/components/file-opener';
+import { AddNewDropdown } from '@/components/file-manager/add-new-dropdown';
+import { FileUploadModal } from '@/components/file-manager/upload-file-modal';
+import { FolderCardSkeleton, FileCardSkeleton } from '@/components/file-manager/skeletons';
+import { ContextMenu } from '@/components/file-manager/context-menu';
+import { useClipboard } from '@/context/clipboard-context';
 
 function formatSize(bytes: number) {
     if (bytes === 0) return '0 B';
@@ -53,8 +59,41 @@ export default function FolderPage() {
     const { openFile } = useFileOpener();
 
     const [activeTab, setActiveTab] = useState('All');
-    const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
-    const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
+    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+    const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+    const [newFolderName, setNewFolderName] = useState('New Folder');
+    const folderInputRef = useRef<HTMLInputElement>(null);
+
+    // Global Clipboard Context
+    const { clipboard, copyToClipboard, cutToClipboard, clearClipboard } = useClipboard();
+
+    // Context Menu State
+    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, type: 'file' | 'folder' | 'empty', target: any } | null>(null);
+
+    // Rename state
+    const [renamingItem, setRenamingItem] = useState<{ id: string, name: string, type: 'file' | 'folder' } | null>(null);
+    const renameInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (renamingItem?.id && renameInputRef.current) {
+            const timer = setTimeout(() => {
+                renameInputRef.current?.focus();
+                renameInputRef.current?.select();
+            }, 50);
+            return () => clearTimeout(timer);
+        }
+    }, [renamingItem?.id]);
+
+    useEffect(() => {
+        if (isCreatingFolder && folderInputRef.current) {
+            // Use setTimeout to ensure focus happens after any dropdown cleanup/focus restoration
+            const timer = setTimeout(() => {
+                folderInputRef.current?.focus();
+                folderInputRef.current?.select();
+            }, 50);
+            return () => clearTimeout(timer);
+        }
+    }, [isCreatingFolder]);
 
     // Queries
     const { data: contentsData, isLoading } = useQuery({
@@ -66,21 +105,332 @@ export default function FolderPage() {
     // Mutations
     const createFolderMutation = useMutation({
         mutationFn: (name: string) => fileManagerService.createFolder(name, folderId),
-        onSuccess: () => {
-            setIsCreateFolderOpen(false);
+        onMutate: async (newFolderName) => {
+            await queryClient.cancelQueries({ queryKey: ['files', folderId] });
+            const previousData = queryClient.getQueryData(['files', folderId]);
+
+            queryClient.setQueryData(['files', folderId], (old: any) => ({
+                ...old,
+                folders: [
+                    {
+                        id: 'temp-' + Date.now(),
+                        name: newFolderName,
+                        isOptimistic: true
+                    },
+                    ...(old?.folders || [])
+                ]
+            }));
+
+            setIsCreatingFolder(false);
+            setNewFolderName('New Folder');
+
+            return { previousData };
+        },
+        onError: (err, newFolderName, context) => {
+            queryClient.setQueryData(['files', folderId], context?.previousData);
+        },
+        onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['files', folderId] });
         },
     });
 
+    const restoreFolderMutation = useMutation({
+        mutationFn: (id: string) => fileManagerService.restoreFolder(id),
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', folderId] });
+            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
+            queryClient.invalidateQueries({ queryKey: ['deleted-items'] });
+        },
+    });
+
+    const restoreFileMutation = useMutation({
+        mutationFn: (id: string) => fileManagerService.restoreFile(id),
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', folderId] });
+            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
+            queryClient.invalidateQueries({ queryKey: ['deleted-items'] });
+        },
+    });
+
+    const deleteFolderMutation = useMutation({
+        mutationFn: (id: string) => fileManagerService.deleteFolder(id),
+        onMutate: async (id) => {
+            await queryClient.cancelQueries({ queryKey: ['files', folderId] });
+            const previousData = queryClient.getQueryData(['files', folderId]);
+            queryClient.setQueryData(['files', folderId], (old: any) => ({
+                ...old,
+                folders: old?.folders?.filter((f: any) => f.id !== id) || []
+            }));
+            return { previousData };
+        },
+        onError: (err, id, context) => {
+            queryClient.setQueryData(['files', folderId], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', folderId] });
+            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
+        },
+    });
+
+    const deleteFileMutation = useMutation({
+        mutationFn: (id: string) => fileManagerService.deleteFile(id),
+        onMutate: async (id) => {
+            await queryClient.cancelQueries({ queryKey: ['files', folderId] });
+            const previousData = queryClient.getQueryData(['files', folderId]);
+            queryClient.setQueryData(['files', folderId], (old: any) => ({
+                ...old,
+                files: old?.files?.filter((f: any) => f.id !== id) || []
+            }));
+            return { previousData };
+        },
+        onError: (err, id, context) => {
+            queryClient.setQueryData(['files', folderId], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', folderId] });
+            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
+        },
+    });
+
+    const renameFolderMutation = useMutation({
+        mutationFn: ({ id, name }: { id: string, name: string }) => fileManagerService.renameFolder(id, name),
+        onMutate: async ({ id, name }) => {
+            await queryClient.cancelQueries({ queryKey: ['files', folderId] });
+            const previousData = queryClient.getQueryData(['files', folderId]);
+            queryClient.setQueryData(['files', folderId], (old: any) => ({
+                ...old,
+                folders: old?.folders?.map((f: any) => f.id === id ? { ...f, name } : f) || []
+            }));
+            return { previousData };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['files', folderId], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', folderId] });
+        },
+    });
+
+    const renameFileMutation = useMutation({
+        mutationFn: ({ id, name }: { id: string, name: string }) => fileManagerService.renameFile(id, name),
+        onMutate: async ({ id, name }) => {
+            await queryClient.cancelQueries({ queryKey: ['files', folderId] });
+            const previousData = queryClient.getQueryData(['files', folderId]);
+            queryClient.setQueryData(['files', folderId], (old: any) => ({
+                ...old,
+                files: old?.files?.map((f: any) => f.id === id ? { ...f, name } : f) || []
+            }));
+            return { previousData };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['files', folderId], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', folderId] });
+        },
+    });
+
+    const moveFileMutation = useMutation({
+        mutationFn: ({ id, targetFolderId }: { id: string, targetFolderId: string | null }) => fileManagerService.moveFile(id, targetFolderId),
+        onMutate: async ({ id, targetFolderId }) => {
+            await queryClient.cancelQueries({ queryKey: ['files', folderId] });
+            const previousData = queryClient.getQueryData(['files', folderId]);
+
+            // If moving to a DIFFERENT folder, remove from current view
+            if (targetFolderId !== folderId) {
+                queryClient.setQueryData(['files', folderId], (old: any) => ({
+                    ...old,
+                    files: old?.files?.filter((f: any) => f.id !== id) || []
+                }));
+            }
+            return { previousData };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['files', folderId], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', folderId] });
+        },
+    });
+
+    const copyFileMutation = useMutation({
+        mutationFn: ({ id, targetFolderId }: { id: string, targetFolderId: string | null }) => fileManagerService.copyFile(id, targetFolderId),
+        onMutate: async ({ id, targetFolderId }) => {
+            await queryClient.cancelQueries({ queryKey: ['files', folderId] });
+            const previousData = queryClient.getQueryData(['files', folderId]);
+
+            // If copying to CURRENT folder, show optimistic item
+            if (targetFolderId === folderId) {
+                const sourceFile = (previousData as any)?.files?.find((f: any) => f.id === id);
+                if (sourceFile) {
+                    const optimisticFile = {
+                        ...sourceFile,
+                        id: 'temp-' + Date.now(),
+                        name: sourceFile.name + ' (Copy)',
+                        isOptimistic: true
+                    };
+                    queryClient.setQueryData(['files', folderId], (old: any) => ({
+                        ...old,
+                        files: [optimisticFile, ...(old?.files || [])]
+                    }));
+                }
+            }
+            return { previousData };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['files', folderId], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', folderId] });
+            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
+        },
+    });
+
+    const moveFolderMutation = useMutation({
+        mutationFn: ({ id, targetParentId }: { id: string, targetParentId: string | null }) => fileManagerService.moveFolder(id, targetParentId),
+        onMutate: async ({ id, targetParentId }) => {
+            await queryClient.cancelQueries({ queryKey: ['files', folderId] });
+            const previousData = queryClient.getQueryData(['files', folderId]);
+
+            // If moving to a DIFFERENT parent, remove from current view
+            if (targetParentId !== folderId) {
+                queryClient.setQueryData(['files', folderId], (old: any) => ({
+                    ...old,
+                    folders: old?.folders?.filter((f: any) => f.id !== id) || []
+                }));
+            }
+            return { previousData };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['files', folderId], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', folderId] });
+        },
+    });
+
+    const copyFolderMutation = useMutation({
+        mutationFn: ({ id, targetParentId }: { id: string, targetParentId: string | null }) => fileManagerService.copyFolder(id, targetParentId),
+        onMutate: async ({ id, targetParentId }) => {
+            await queryClient.cancelQueries({ queryKey: ['files', folderId] });
+            const previousData = queryClient.getQueryData(['files', folderId]);
+
+            // If copying to CURRENT folder, show optimistic folder
+            if (targetParentId === folderId) {
+                const sourceFolder = (previousData as any)?.folders?.find((f: any) => f.id === id);
+                if (sourceFolder) {
+                    const optimisticFolder = {
+                        ...sourceFolder,
+                        id: 'temp-' + Date.now(),
+                        name: sourceFolder.name + ' (Copy)',
+                        isOptimistic: true
+                    };
+                    queryClient.setQueryData(['files', folderId], (old: any) => ({
+                        ...old,
+                        folders: [optimisticFolder, ...(old?.folders || [])]
+                    }));
+                }
+            }
+            return { previousData };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['files', folderId], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', folderId] });
+            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
+        },
+    });
+
+    const handleContextMenu = (e: React.MouseEvent, type: 'file' | 'folder' | 'empty', target: any) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setContextMenu({ x: e.clientX, y: e.clientY, type, target });
+    };
+
+    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste') => {
+        if (!contextMenu) return;
+
+        const { type, target } = contextMenu;
+        setContextMenu(null);
+
+        switch (action) {
+            case 'copy':
+                copyToClipboard(type as any, target);
+                break;
+            case 'cut':
+                cutToClipboard(type as any, target);
+                break;
+            case 'rename':
+                setRenamingItem({ id: target.id, name: target.name, type: type as any });
+                break;
+            case 'delete':
+                if (type === 'folder') deleteFolderMutation.mutate(target.id);
+                else deleteFileMutation.mutate(target.id);
+                break;
+            case 'paste':
+                if (clipboard) {
+                    const targetFolderId = type === 'folder' ? target.id : (folderId || null);
+                    if (clipboard.action === 'cut') {
+                        if (clipboard.type === 'folder') moveFolderMutation.mutate({ id: clipboard.item.id, targetParentId: targetFolderId });
+                        else moveFileMutation.mutate({ id: clipboard.item.id, targetFolderId: targetFolderId });
+                        clearClipboard();
+                    } else {
+                        if (clipboard.type === 'folder') copyFolderMutation.mutate({ id: clipboard.item.id, targetParentId: targetFolderId });
+                        else copyFileMutation.mutate({ id: clipboard.item.id, targetFolderId: targetFolderId });
+                    }
+                }
+                break;
+        }
+    };
+
+    const handleRenameSubmit = () => {
+        if (renamingItem) {
+            if (renamingItem.type === 'folder') {
+                renameFolderMutation.mutate({ id: renamingItem.id, name: renamingItem.name });
+            } else {
+                renameFileMutation.mutate({ id: renamingItem.id, name: renamingItem.name });
+            }
+            setRenamingItem(null);
+        }
+    };
+
     const uploadFileMutation = useMutation({
         mutationFn: (file: File) => fileManagerService.uploadFile(file, folderId),
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['files', folderId] }),
+        onMutate: async (newFile) => {
+            await queryClient.cancelQueries({ queryKey: ['files', folderId] });
+            const previousData = queryClient.getQueryData(['files', folderId]);
+
+            queryClient.setQueryData(['files', folderId], (old: any) => ({
+                ...old,
+                files: [
+                    {
+                        id: 'temp-' + Date.now(),
+                        name: newFile.name,
+                        size: newFile.size,
+                        mimeType: newFile.type,
+                        url: '', // No URL yet
+                        isOptimistic: true,
+                        updatedAt: new Date().toISOString()
+                    },
+                    ...(old?.files || [])
+                ]
+            }));
+
+            return { previousData };
+        },
+        onError: (err, newFile, context) => {
+            queryClient.setQueryData(['files', folderId], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', folderId] });
+            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
+        },
     });
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files?.[0]) {
             uploadFileMutation.mutate(e.target.files[0]);
-            setIsAddMenuOpen(false);
         }
     };
 
@@ -107,12 +457,27 @@ export default function FolderPage() {
     const isImage = (name: string, mimeType: string) => isImageFile(name, mimeType);
     const getDisplayName = (name: string) => name?.split('/').pop() || name;
 
-    if (isLoading) return <div className="min-h-screen bg-white flex items-center justify-center text-[#8F9BB3]">Loading...</div>;
+    const handleCreateFolder = async (e?: React.FormEvent) => {
+        e?.preventDefault();
+        if (newFolderName.trim() && !createFolderMutation.isPending) {
+            createFolderMutation.mutate(newFolderName);
+        }
+    };
+
+    const cancelCreateFolder = () => {
+        setIsCreatingFolder(false);
+        setNewFolderName('New Folder');
+    };
+
+    const hasContent = filteredFolders.length > 0 || filteredFiles.length > 0;
+
+    // Removal of full page loading to allow for granular skeletons
+    // if (isLoading) return <div className="min-h-screen bg-white flex items-center justify-center text-[#8F9BB3]">Loading...</div>;
 
     return (
-        <div className="min-h-screen bg-white p-8">
+        <div className="min-h-[calc(100vh-64px)] bg-white p-8 flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center justify-between mb-6" onContextMenu={(e) => handleContextMenu(e, 'empty', null)}>
                 <div className="flex items-center gap-3">
                     <button onClick={() => router.back()} className="text-[#1A1A1A] hover:text-[#009DFF]">
                         <ChevronLeft size={24} />
@@ -120,33 +485,10 @@ export default function FolderPage() {
                     <h1 className="text-[20px] font-semibold text-[#1A1A1A]">{currentFolderName}</h1>
                 </div>
 
-                {/* Add New Dropdown */}
-                <div className="relative">
-                    <button
-                        onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
-                        className="flex items-center gap-2 text-[#009DFF] font-medium hover:opacity-80"
-                    >
-                        <Plus size={20} />
-                        Add new
-                    </button>
-
-                    {isAddMenuOpen && (
-                        <div className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg border border-[#E4E9F2] py-2 min-w-[180px] z-10">
-                            <button
-                                onClick={() => { setIsCreateFolderOpen(true); setIsAddMenuOpen(false); }}
-                                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#F9FBFF] text-[#1A1A1A] text-[14px]"
-                            >
-                                <FolderPlus size={18} className="text-[#8F9BB3]" />
-                                Create new folder
-                            </button>
-                            <label className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#F9FBFF] text-[#1A1A1A] text-[14px] cursor-pointer">
-                                <Upload size={18} className="text-[#8F9BB3]" />
-                                Upload new file
-                                <input type="file" className="hidden" onChange={handleFileUpload} />
-                            </label>
-                        </div>
-                    )}
-                </div>
+                <AddNewDropdown
+                    onCreateFolder={() => setIsCreatingFolder(true)}
+                    onShowUploadModal={() => setIsUploadModalOpen(true)}
+                />
             </div>
 
             {/* Tab Filters */}
@@ -165,128 +507,204 @@ export default function FolderPage() {
                 ))}
             </div>
 
-            {/* Content Grid */}
-            {filteredFolders.length === 0 && filteredFiles.length === 0 ? (
-                <div className="text-center py-20 text-[#8F9BB3]">No items found</div>
-            ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                    {/* Folders */}
-                    {filteredFolders.map((folder: any) => (
-                        <div
-                            key={folder.id}
-                            onClick={() => router.push(`/file-manager/folder/${folder.id}`)}
-                            className="bg-[#FAFBFC] rounded-[16px] p-4 cursor-pointer hover:shadow-md transition-shadow group"
-                        >
-                            <div className="flex items-center justify-center py-6">
-                                <Image
-                                    src="/svg/folder_icon.svg"
-                                    width={80}
-                                    height={80}
-                                    alt="Folder"
-                                />
-                            </div>
-                            <div className="text-center">
-                                <span className="text-[14px] text-[#1A1A1A] font-medium truncate block" title={folder.name}>
-                                    {folder.name}
-                                </span>
-                            </div>
-                        </div>
-                    ))}
+            {/* Content Container to fill space for right-click */}
+            <div
+                className="flex-1"
+                onContextMenu={(e) => {
+                    // Check if clicking on a file/folder item by traversing up from target
+                    const target = e.target as HTMLElement;
+                    const isOnItem = target.closest('[data-file-item]') || target.closest('[data-folder-item]');
+                    if (!isOnItem) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleContextMenu(e, 'empty', null);
+                    }
+                }}
+            >
+                {/* Folders Selection */}
+                {(filteredFolders.length > 0 || isCreatingFolder || (isLoading && (activeTab === 'All' || activeTab === 'Folders'))) && (
+                    <div className="mb-10">
+                        <h2 className="text-[14px] font-semibold text-[#8F9BB3] mb-5 uppercase tracking-wider">Folders</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                            {/* Skeleton Loading State for Folders */}
+                            {isLoading && (activeTab === 'All' || activeTab === 'Folders') && [1, 2, 3].map((i) => <FolderCardSkeleton key={`folder-skele-${i}`} />)}
 
-                    {/* Files */}
-                    {filteredFiles.map((file: any) => (
-                        <div
-                            key={file.id}
-                            className="bg-[#EEF5FA] rounded-[20px] overflow-hidden cursor-pointer hover:shadow-md transition-shadow group p-[10px]"
-                            onClick={() => openFile({
-                                url: file.url,
-                                name: file.name,
-                                type: getFileType(file.url)
-                            })}
-                        >
-                            {/* Thumbnail */}
-                            <div className="aspect-[4/3] bg-white rounded-[12px] relative overflow-hidden">
-                                {isImage(file.name, file.mimeType) ? (
-                                    <img
-                                        src={file.url}
-                                        alt={getDisplayName(file.name)}
-                                        className="w-full h-full object-cover"
-                                    />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
+                            {/* Inline Creation Item */}
+                            {isCreatingFolder && (
+                                <div className={`rounded-[16px] ring-2 ring-[#00AAFF] ${createFolderMutation.isPending ? 'opacity-50 pointer-events-none' : ''}`}>
+                                    <div className="flex items-center justify-center pt-8 pb-4">
                                         <Image
-                                            src={getFileIconPath(file.name, file.mimeType)}
-                                            width={60}
-                                            height={60}
-                                            alt="File"
+                                            src="/svg/folder_icon.svg"
+                                            width={146}
+                                            height={146}
+                                            alt="Folder"
+                                            className="w-full h-auto max-w-[146px]"
                                         />
                                     </div>
-                                )}
-                            </div>
-
-                            {/* File Info */}
-                            <div className="p-3 flex items-center justify-between">
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                    <Image
-                                        src={getFileIconPath(file.name, file.mimeType)}
-                                        width={20}
-                                        height={20}
-                                        alt=""
-                                    />
-                                    <span className="text-[13px] text-[#1A1A1A] truncate" title={getDisplayName(file.name)}>
-                                        {getDisplayName(file.name)}
-                                    </span>
+                                    <div className="text-center pb-6 px-4">
+                                        <form onSubmit={handleCreateFolder}>
+                                            <input
+                                                ref={folderInputRef}
+                                                className="text-[14px] text-[#1A1A1A] font-medium w-full text-center bg-transparent border-none focus:outline-none"
+                                                value={newFolderName}
+                                                onChange={(e) => setNewFolderName(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Escape') cancelCreateFolder();
+                                                }}
+                                            />
+                                        </form>
+                                    </div>
                                 </div>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); }}
-                                    className="p-1 text-[#8F9BB3] hover:text-[#1A1A1A] opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                    <MoreVertical size={18} />
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
+                            )}
 
-            {/* Create Folder Modal */}
-            {isCreateFolderOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setIsCreateFolderOpen(false)}>
-                    <div className="bg-white p-8 rounded-2xl w-[400px]" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-xl font-bold mb-6">Create New Folder</h3>
-                        <form
-                            onSubmit={(e) => {
-                                e.preventDefault();
-                                const formData = new FormData(e.currentTarget);
-                                const name = formData.get('folderName') as string;
-                                if (name) createFolderMutation.mutate(name);
-                            }}
-                        >
-                            <input
-                                name="folderName"
-                                type="text"
-                                placeholder="Folder Name"
-                                className="w-full bg-[#FAFBFF] border border-[#EDF1F7] rounded-xl px-4 py-3 mb-6 focus:outline-none focus:ring-2 focus:ring-[#00AAFF]/20"
-                                autoFocus
-                            />
-                            <div className="flex justify-end gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsCreateFolderOpen(false)}
-                                    className="px-6 py-2 text-gray-500 font-medium hover:bg-gray-100 rounded-lg"
+                            {filteredFolders.map((folder: any) => (
+                                <div
+                                    key={folder.id}
+                                    data-folder-item
+                                    onClick={() => !folder.isOptimistic && router.push(`/file-manager/folder/${folder.id}`)}
+                                    onContextMenu={(e) => handleContextMenu(e, 'folder', folder)}
+                                    className={`rounded-[16px] transition-all group ${folder.isOptimistic ? 'opacity-50 cursor-default' : 'cursor-pointer hover:bg-gray-50'}`}
                                 >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-6 py-2 bg-[#00AAFF] text-white font-bold rounded-lg hover:bg-[#0090D9]"
-                                >
-                                    Create
-                                </button>
-                            </div>
-                        </form>
+                                    <div className="flex items-center justify-center pt-8 pb-4 relative">
+                                        <Image
+                                            src="/svg/folder_icon.svg"
+                                            width={146}
+                                            height={146}
+                                            alt="Folder"
+                                            className="w-full h-auto max-w-[146px]"
+                                        />
+                                    </div>
+                                    <div className="text-center pb-6 px-4">
+                                        {renamingItem?.id === folder.id ? (
+                                            <input
+                                                ref={renameInputRef}
+                                                type="text"
+                                                value={renamingItem?.name || ''}
+                                                onChange={(e) => setRenamingItem(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') handleRenameSubmit();
+                                                    if (e.key === 'Escape') setRenamingItem(null);
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                                onContextMenu={(e) => e.stopPropagation()}
+                                                className="text-[14px] text-[#1A1A1A] font-medium w-full text-center bg-white border border-[#00AAFF] rounded px-1 outline-none"
+                                            />
+                                        ) : (
+                                            <>
+                                                <span className="text-[14px] text-[#1A1A1A] font-medium truncate block" title={folder.name}>
+                                                    {folder.name}
+                                                </span>
+
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                </div>
+                )}
+
+                {/* Files Section */}
+                {(filteredFiles.length > 0 || (isLoading && activeTab !== 'Folders')) && (
+                    <div className="mb-10">
+                        <h2 className="text-[14px] font-semibold text-[#8F9BB3] mb-5 uppercase tracking-wider">Recent Files</h2>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                            {/* Skeleton Loading State for Files */}
+                            {isLoading && (activeTab === 'All' || activeTab !== 'Folders') && [1, 2, 3, 4, 5].map((i) => <FileCardSkeleton key={`file-skele-${i}`} />)}
+
+                            {filteredFiles.map((file: any) => (
+                                <div
+                                    key={file.id}
+                                    data-file-item
+                                    className={`bg-[#EEF5FA] rounded-[20px] overflow-hidden group p-[10px] transition-all ${file.isOptimistic ? 'opacity-50 cursor-default pointer-events-none' : 'cursor-pointer hover:shadow-sm'}`}
+                                    onContextMenu={(e) => handleContextMenu(e, 'file', file)}
+                                    onClick={() => !file.isOptimistic && openFile({
+                                        url: file.url,
+                                        name: file.name,
+                                        type: getFileType(file.url)
+                                    })}
+                                >
+                                    {/* Thumbnail Area */}
+                                    <div className="aspect-[4/3] bg-white rounded-[12px] relative overflow-hidden">
+                                        {isImage(file.name, file.mimeType) && !file.isOptimistic ? (
+                                            <img
+                                                src={file.url}
+                                                alt={getDisplayName(file.name)}
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center">
+                                                <Image
+                                                    src={getFileIconPath(file.name, file.mimeType)}
+                                                    width={60}
+                                                    height={60}
+                                                    alt="File"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* File Info */}
+                                    <div className="p-3 flex items-center justify-between">
+                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                            <Image
+                                                src={getFileIconPath(file.name, file.mimeType)}
+                                                width={20}
+                                                height={20}
+                                                alt=""
+                                            />
+                                            {renamingItem?.id === file.id ? (
+                                                <input
+                                                    ref={renameInputRef}
+                                                    type="text"
+                                                    value={renamingItem?.name || ''}
+                                                    onChange={(e) => setRenamingItem(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleRenameSubmit();
+                                                        if (e.key === 'Escape') setRenamingItem(null);
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    onContextMenu={(e) => e.stopPropagation()}
+                                                    className="text-[13px] text-[#1A1A1A] font-medium w-full bg-white border border-[#00AAFF] rounded px-1 outline-none"
+                                                />
+                                            ) : (
+                                                <span className="text-[13px] text-[#1A1A1A] truncate" title={getDisplayName(file.name)}>
+                                                    {file.isOptimistic ? 'Saving...' : getDisplayName(file.name)}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {!hasContent && !isCreatingFolder && !isLoading && (
+                    <div className="flex-1 flex flex-col items-center justify-center py-20">
+                        <p className="text-[#8F9BB3] text-[16px]">The folder is empty</p>
+                    </div>
+                )}
+            </div>
+
+
+            <FileUploadModal
+                isOpen={isUploadModalOpen}
+                onClose={() => setIsUploadModalOpen(false)}
+                onUpload={(files) => {
+                    files.forEach(file => uploadFileMutation.mutate(file));
+                }}
+            />
+
+            {contextMenu && (
+                <ContextMenu
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    type={contextMenu.type}
+                    onAction={handleContextAction}
+                    onClose={() => setContextMenu(null)}
+                    hasClipboard={!!clipboard}
+                />
             )}
         </div>
     );
