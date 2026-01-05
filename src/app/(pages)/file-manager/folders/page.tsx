@@ -250,18 +250,21 @@ export default function AllFoldersPage() {
         setContextMenu({ x: e.clientX, y: e.clientY, type, target });
     };
 
-    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste' | 'properties' | 'color', color?: string) => {
+    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste' | 'properties' | 'color' | 'mark', color?: string) => {
         if (!contextMenu) return;
 
         const { type, target } = contextMenu;
         setContextMenu(null);
 
         switch (action) {
+            case 'mark':
+                // Not used in this view
+                break;
             case 'copy':
-                copyToClipboard(type as any, target);
+                copyToClipboard([{ type: type as any, item: target }]);
                 break;
             case 'cut':
-                cutToClipboard(type as any, target);
+                cutToClipboard([{ type: type as any, item: target }]);
                 break;
             case 'rename':
                 setRenamingItem({ id: target.id, name: target.name, type: type as any });
@@ -278,13 +281,21 @@ export default function AllFoldersPage() {
                 }
                 break;
             case 'paste':
-                if (clipboard) {
+                if (clipboard && clipboard.items.length > 0) {
                     const targetFolderId = type === 'folder' ? target.id : null;
+
+                    clipboard.items.forEach(({ type: itemType, item }) => {
+                        if (clipboard.action === 'cut') {
+                            if (itemType === 'folder') moveFolderMutation.mutate({ id: item.id, targetParentId: targetFolderId });
+                            else moveFolderMutation.mutate({ id: item.id, targetParentId: targetFolderId }); // Assuming only folders are shown here? Actually 'moveFile' if it's a file?
+                        } else {
+                            if (itemType === 'folder') copyFolderMutation.mutate({ id: item.id, targetParentId: targetFolderId });
+                            else copyFolderMutation.mutate({ id: item.id, targetParentId: targetFolderId });
+                        }
+                    });
+
                     if (clipboard.action === 'cut') {
-                        if (clipboard.type === 'folder') moveFolderMutation.mutate({ id: clipboard.item.id, targetParentId: targetFolderId });
                         clearClipboard();
-                    } else {
-                        if (clipboard.type === 'folder') copyFolderMutation.mutate({ id: clipboard.item.id, targetParentId: targetFolderId });
                     }
                 }
                 break;
