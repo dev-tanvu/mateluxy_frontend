@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
 import { Layers, Map as MapIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getGoogleMapsApiKey } from '@/services/integration.service';
 
 const libraries: ("places")[] = ["places"];
 
@@ -97,8 +98,28 @@ const mapOptions: google.maps.MapOptions = {
 };
 
 export function PropertyMap({ address, latitude, longitude, onAddressChange, onMarkerDrag, className }: PropertyMapProps) {
+    // State for API key loaded from backend
+    const [apiKey, setApiKey] = useState<string | null>(null);
+    const [apiKeyLoading, setApiKeyLoading] = useState(true);
+
+    // Fetch API key from backend integration config
+    useEffect(() => {
+        const fetchApiKey = async () => {
+            try {
+                const key = await getGoogleMapsApiKey();
+                // Fall back to env variable if not in database
+                setApiKey(key || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '');
+            } catch {
+                setApiKey(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '');
+            } finally {
+                setApiKeyLoading(false);
+            }
+        };
+        fetchApiKey();
+    }, []);
+
     const { isLoaded, loadError } = useJsApiLoader({
-        googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+        googleMapsApiKey: apiKey || '',
         libraries,
     });
 
@@ -175,6 +196,15 @@ export function PropertyMap({ address, latitude, longitude, onAddressChange, onM
     const toggleMapType = () => {
         setMapType(prev => prev === 'roadmap' ? 'satellite' : 'roadmap');
     };
+
+    // Show loading while fetching API key
+    if (apiKeyLoading) {
+        return (
+            <div className={cn("bg-gray-100 rounded-2xl flex items-center justify-center border border-[#EDF1F7]", className)}>
+                <div className="text-gray-400">Loading map...</div>
+            </div>
+        );
+    }
 
     if (loadError) {
         return (

@@ -16,25 +16,39 @@ import { toast } from 'sonner';
 import { VirtuosoGrid } from 'react-virtuoso';
 import { useStickyFilter } from '@/hooks/use-sticky-filter';
 
+// Default filter values for this page
+const defaultFilters: PropertyFilterValues = {
+    agentIds: [],
+    category: '',
+    purpose: '',
+    location: '',
+    reference: '',
+    propertyTypes: [],
+    permitNumber: '',
+    status: 'RENTED',
+    minPrice: 0,
+    maxPrice: 100000000,
+    minArea: 0,
+    maxArea: 50000,
+};
+
 export default function RentedPropertiesPage() {
     const queryClient = useQueryClient();
     const [searchQuery, setSearchQuery] = React.useState('');
     const [showFilters, setShowFilters] = React.useState(false);
+    const [filterKey, setFilterKey] = React.useState(0); // Key to force re-mount of filters
     const [sortConfig, setSortConfig] = React.useState<SortConfig>({ sortBy: 'date', sortOrder: 'desc' });
-    const [filters, setFilters] = React.useState<PropertyFilterValues>({
-        agentIds: [],
-        category: '',
-        purpose: '',
-        location: '',
-        reference: '',
-        propertyTypes: [],
-        permitNumber: '',
-        status: 'RENTED',
-        minPrice: 0,
-        maxPrice: 100000000,
-        minArea: 0,
-        maxArea: 50000,
-    });
+    const [filters, setFilters] = React.useState<PropertyFilterValues>(defaultFilters);
+
+    // Function to toggle filters and reset on close
+    const handleToggleFilters = () => {
+        if (showFilters) {
+            // Closing filters - reset to defaults
+            setFilters(defaultFilters);
+            setFilterKey(prev => prev + 1); // Force re-mount of filter component
+        }
+        setShowFilters(!showFilters);
+    };
 
     // Fetch aggregates
     const { data: aggregates } = useQuery({
@@ -145,6 +159,7 @@ export default function RentedPropertiesPage() {
             {showFilters && (
                 <div className="w-[340px] flex-shrink-0 bg-white border-r border-[#EDF1F7] p-6 h-screen sticky top-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     <PropertyFilters
+                        key={filterKey}
                         onFiltersChange={setFilters}
                         minPrice={aggregates?.minPrice}
                         maxPrice={aggregates?.maxPrice}
@@ -184,7 +199,7 @@ export default function RentedPropertiesPage() {
                     </div>
                     <Button
                         variant="outline"
-                        onClick={() => setShowFilters(!showFilters)}
+                        onClick={handleToggleFilters}
                         className={`h-[46px] px-5 rounded-lg border-[#EDF1F7] text-sm font-medium gap-2 shadow-none border-none transition-colors ${showFilters
                             ? 'bg-[#E0F2FE] text-[#0BA5EC] hover:bg-[#BAE6FD]'
                             : 'bg-white text-[#1A1A1A] hover:bg-gray-50'

@@ -57,6 +57,15 @@ const availableIntegrations = [
             { key: 'phoneNumber', label: 'Phone Number', type: 'text', placeholder: '+971...' },
             { key: 'apiKey', label: 'API Key', type: 'password', placeholder: 'Enter API Key' }
         ]
+    },
+    {
+        key: 'gemini',
+        name: 'Google Gemini AI',
+        description: 'AI-powered property description and title generation using Google Gemini.',
+        icon: '/gemini_icon.svg',
+        fields: [
+            { key: 'apiKey', label: 'API Key', type: 'password', placeholder: 'Enter your Gemini API Key' }
+        ]
     }
 ];
 
@@ -171,30 +180,8 @@ export default function IntegrationsPage() {
         );
     }
 
-    const suggestions = availableIntegrations.slice(0, 3);
-
     return (
         <div className="p-8 space-y-8 bg-white min-h-screen font-sans">
-            <div>
-                <h2 className="text-[22px] font-bold mb-2 text-[#111827]">CRM Integrations</h2>
-                <p className="text-[#6B7280] text-sm mb-6">Connect your favorite tools and marketplaces to sync property data and leads.</p>
-            </div>
-
-            <div>
-                <h2 className="text-[22px] font-bold mb-6 text-[#111827]">Suggested for your</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {suggestions.map((integration) => (
-                        <IntegrationCard
-                            key={integration.key}
-                            integration={integration}
-                            isConnected={isConnected(integration.key)}
-                            onConnect={() => handleConnectClick(integration)}
-                            onDisconnect={() => handleDisconnectClick(integration.key)}
-                        />
-                    ))}
-                </div>
-            </div>
-
             <div>
                 <h2 className="text-[22px] font-bold mb-6 text-[#111827]">All Integrations</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

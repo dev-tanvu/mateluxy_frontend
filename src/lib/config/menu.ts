@@ -38,7 +38,7 @@ export const MENU_ITEMS: MenuItem[] = [
         href: '/properties',
         permission: 'Property',
         submenu: [
-            { title: 'Active Properties', href: '/properties/all' },
+            { title: 'Active Properties', href: '/properties/active-properties' },
             { title: 'Add New Property', href: '/properties/new' },
             { title: 'Saved Drafts', href: '/properties/saved-drafts' },
             { title: 'From Agents', href: '/properties/agents', underDevelopment: true },

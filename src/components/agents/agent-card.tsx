@@ -71,11 +71,42 @@ export function AgentCard({ agent, onEdit, onDelete }: AgentCardProps) {
 
             {/* Info Section */}
             <div className="px-5 pt-5 font-montserrat">
-                {/* Name and ID Badge */}
-                <div className="flex items-start justify-between ">
-                    <h3 className="text-[22px] font-semibold text-black flex-1 truncate pr-2">
+                {/* Name and Score Badge */}
+                <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-[18px] font-semibold text-black flex-1 truncate">
                         {agent.name}
                     </h3>
+                    {/* Score Badge */}
+                    <div className="relative w-[32px] h-[32px] flex items-center justify-center flex-shrink-0">
+                        <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
+                            <defs>
+                                <linearGradient id={`scoreGradient-${agent.id}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stopColor="#029DFE" />
+                                    <stop offset="100%" stopColor="#00FFA6" />
+                                </linearGradient>
+                            </defs>
+                            {/* Track */}
+                            <path
+                                className="text-[#E7F9F7]"
+                                d="M18 4 a 14 14 0 0 1 0 28 a 14 14 0 0 1 0 -28"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="3"
+                            />
+                            {/* Progress - 80% */}
+                            <path
+                                stroke={`url(#scoreGradient-${agent.id})`}
+                                strokeDasharray="80, 100"
+                                d="M18 4 a 14 14 0 0 1 0 28 a 14 14 0 0 1 0 -28"
+                                fill="none"
+                                strokeWidth="3"
+                                strokeLinecap="round"
+                            />
+                        </svg>
+                        <span className="absolute text-[9px] font-bold text-[#1A1A1A]">
+                            80
+                        </span>
+                    </div>
                 </div>
 
                 {/* Position | Department */}
