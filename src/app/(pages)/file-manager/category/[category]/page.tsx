@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import api from '@/lib/api/axios';
-import { ChevronLeft, Plus, MoreVertical } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { fileManagerService } from '@/services/file-manager.service';
 import Image from 'next/image';
 import { useFileOpener, getFileType } from '@/components/file-opener';
+import { FileUploadModal } from '@/components/file-manager/upload-file-modal';
+import { ContextMenu } from '@/components/file-manager/context-menu';
+import { useClipboard } from '@/context/clipboard-context';
+import { FileCardSkeleton } from '@/components/file-manager/skeletons';
+import { PropertiesModal } from '@/components/file-manager/properties-modal';
 
 // Helper Functions
 function formatSize(bytes: number) {
@@ -37,7 +44,6 @@ const archiveExts = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'];
 const getFileExtension = (filename: string) => filename?.split('.').pop()?.toLowerCase() || '';
 const isImageFile = (name: string, mime: string) => imageExts.includes(getFileExtension(name)) || mime?.startsWith('image/');
 
-// Get the correct SVG icon path based on file type
 const getFileIconPath = (name: string, mime: string): string => {
     const ext = getFileExtension(name);
     if (imageExts.includes(ext) || mime?.startsWith('image/')) return '/svg/image_icon.svg';
@@ -49,87 +55,238 @@ const getFileIconPath = (name: string, mime: string): string => {
     return '/svg/files_icon.svg';
 };
 
-
-
 export default function CategoryPage() {
     const params = useParams();
     const router = useRouter();
+    const queryClient = useQueryClient();
     const { openFile } = useFileOpener();
     const category = params.category as string;
-    const [files, setFiles] = useState<FileItem[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+
+    // Global Clipboard Context
+    const { clipboard, copyToClipboard, cutToClipboard, clearClipboard } = useClipboard();
+
+    // Context Menu State
+    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, type: 'file' | 'folder' | 'empty', target: any } | null>(null);
+
+    // Rename state
+    const [renamingItem, setRenamingItem] = useState<{ id: string, name: string, type: 'file' | 'folder' } | null>(null);
+    const renameInputRef = useRef<HTMLInputElement>(null);
+
+    // Properties Modal State
+    const [propertiesModal, setPropertiesModal] = useState<{ isOpen: boolean, item: any, type: 'file' | 'folder' }>({ isOpen: false, item: null, type: 'folder' });
 
     useEffect(() => {
-        if (category) {
-            fetchFiles();
+        if (renamingItem?.id && renameInputRef.current) {
+            const timer = setTimeout(() => {
+                renameInputRef.current?.focus();
+                renameInputRef.current?.select();
+            }, 50);
+            return () => clearTimeout(timer);
         }
-    }, [category]);
+    }, [renamingItem?.id]);
 
-    const fetchFiles = async () => {
-        try {
-            setLoading(true);
+    // Queries
+    const { data: files = [], isLoading: loading } = useQuery({
+        queryKey: ['category-files', category],
+        queryFn: async () => {
             const { data } = await api.get(`/file-manager/category/${category}`);
-            setFiles(data);
-        } catch (error) {
-            console.error('Failed to fetch category files:', error);
-        } finally {
-            setLoading(false);
+            return data as FileItem[];
+        },
+        enabled: !!category,
+    });
+
+    const uploadFileMutation = useMutation({
+        mutationFn: (file: File) => fileManagerService.uploadFile(file),
+        onMutate: async (newFile) => {
+            await queryClient.cancelQueries({ queryKey: ['category-files', category] });
+            const previousData = queryClient.getQueryData(['category-files', category]);
+
+            const optimisticFile = {
+                id: 'temp-' + Date.now(),
+                name: newFile.name,
+                size: newFile.size,
+                mimeType: newFile.type,
+                url: '',
+                isOptimistic: true,
+                updatedAt: new Date().toISOString()
+            };
+
+            queryClient.setQueryData(['category-files', category], (old: any) => [optimisticFile, ...(old || [])]);
+            return { previousData };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['category-files', category], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['category-files', category] });
+            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
+        },
+    });
+
+    const deleteFileMutation = useMutation({
+        mutationFn: (id: string) => fileManagerService.deleteFile(id),
+        onMutate: async (id) => {
+            await queryClient.cancelQueries({ queryKey: ['category-files', category] });
+            const previousData = queryClient.getQueryData(['category-files', category]);
+            queryClient.setQueryData(['category-files', category], (old: any) => old?.filter((f: any) => f.id !== id) || []);
+            return { previousData };
+        },
+        onError: (err, id, context) => {
+            queryClient.setQueryData(['category-files', category], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['category-files', category] });
+            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
+        },
+    });
+
+    const renameFileMutation = useMutation({
+        mutationFn: ({ id, name }: { id: string, name: string }) => fileManagerService.renameFile(id, name),
+        onMutate: async ({ id, name }) => {
+            await queryClient.cancelQueries({ queryKey: ['category-files', category] });
+            const previousData = queryClient.getQueryData(['category-files', category]);
+            queryClient.setQueryData(['category-files', category], (old: any) => old?.map((f: any) => f.id === id ? { ...f, name } : f) || []);
+            return { previousData };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['category-files', category], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['category-files', category] });
+        },
+    });
+
+    const moveFileMutation = useMutation({
+        mutationFn: ({ id, targetFolderId }: { id: string, targetFolderId: string | null }) => fileManagerService.moveFile(id, targetFolderId),
+        onMutate: async ({ id, targetFolderId }) => {
+            await queryClient.cancelQueries({ queryKey: ['category-files', category] });
+            const previousData = queryClient.getQueryData(['category-files', category]);
+            queryClient.setQueryData(['category-files', category], (old: any) => old?.filter((f: any) => f.id !== id) || []);
+            return { previousData };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['category-files', category], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['category-files', category] });
+        },
+    });
+
+    const copyFileMutation = useMutation({
+        mutationFn: ({ id, targetFolderId }: { id: string, targetFolderId: string | null }) => fileManagerService.copyFile(id, targetFolderId),
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['category-files', category] });
+            queryClient.invalidateQueries({ queryKey: ['storage-stats'] });
+        },
+    });
+
+    const handleContextMenu = (e: React.MouseEvent, type: 'file' | 'folder' | 'empty', target: any) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setContextMenu({ x: e.clientX, y: e.clientY, type, target });
+    };
+
+    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste' | 'properties' | 'color', color?: string) => {
+        if (!contextMenu) return;
+        const { type, target } = contextMenu;
+        setContextMenu(null);
+
+        switch (action) {
+            case 'copy':
+                copyToClipboard(type as any, target);
+                break;
+            case 'cut':
+                cutToClipboard(type as any, target);
+                break;
+            case 'rename':
+                setRenamingItem({ id: target.id, name: target.name, type: type as any });
+                break;
+            case 'delete':
+                if (type === 'file') deleteFileMutation.mutate(target.id);
+                break;
+            case 'properties':
+                setPropertiesModal({ isOpen: true, item: target, type: type as any });
+                break;
+            case 'color':
+                // Files don't have color, but type requirement
+                break;
+            case 'paste':
+                if (clipboard) {
+                    const targetFolderId = type === 'folder' ? target.id : null;
+                    if (clipboard.action === 'cut') {
+                        if (clipboard.type === 'folder') Promise.resolve(); // Folders not in category view
+                        else moveFileMutation.mutate({ id: clipboard.item.id, targetFolderId: targetFolderId });
+                        clearClipboard();
+                    } else {
+                        if (clipboard.type === 'folder') Promise.resolve();
+                        else copyFileMutation.mutate({ id: clipboard.item.id, targetFolderId: targetFolderId });
+                    }
+                }
+                break;
+        }
+    };
+
+    const handleRenameSubmit = () => {
+        if (renamingItem) {
+            if (renamingItem.type === 'file') {
+                renameFileMutation.mutate({ id: renamingItem.id, name: renamingItem.name });
+            }
+            setRenamingItem(null);
         }
     };
 
     const capitalizedCategory = category ? category.charAt(0).toUpperCase() + category.slice(1) : '';
-
-    // Get display name from filename (remove path if any)
-    const getDisplayName = (name: string) => {
-        const parts = name.split('/');
-        return parts[parts.length - 1];
-    };
-
-    // Check if file is an image for thumbnail display
-    const isImage = (mimeType: string) => mimeType?.toLowerCase().startsWith('image/');
+    const getDisplayName = (name: string) => name.split('/').pop() || name;
 
     return (
-        <div className="flex bg-white min-h-screen">
-            <div className="flex-1 p-8">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => router.back()}
-                            className="w-10 h-10 flex items-center justify-center text-[#1A1A1A] hover:text-[#009DFF] transition-colors"
-                        >
-                            <ChevronLeft size={24} />
-                        </button>
-                        <h1 className="text-[20px] font-semibold text-[#1A1A1A]">
-                            {capitalizedCategory}
-                        </h1>
-                    </div>
-                    <button className="flex items-center gap-2 text-[#009DFF] font-medium hover:opacity-80 transition-opacity">
-                        <Plus size={20} />
-                        Add new
+        <div
+            className="min-h-[calc(100vh-64px)] bg-white p-8 flex flex-col"
+            onContextMenu={(e) => {
+                const target = e.target as HTMLElement;
+                const isOnItem = target.closest('[data-file-item]');
+                if (!isOnItem) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleContextMenu(e, 'empty', null);
+                }
+            }}
+        >
+            <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={() => router.back()}
+                        className="w-10 h-10 flex items-center justify-center text-[#1A1A1A] hover:text-[#009DFF] transition-colors"
+                    >
+                        <ChevronLeft size={24} />
                     </button>
+                    <h1 className="text-[20px] font-semibold text-[#1A1A1A]">
+                        {capitalizedCategory}
+                    </h1>
                 </div>
+            </div>
 
-
-
-                {/* File Grid */}
+            <div className="flex-1">
                 {loading ? (
-                    <div className="text-center py-20 text-[#8F9BB3]">Loading files...</div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => <FileCardSkeleton key={`cate-skele-${i}`} />)}
+                    </div>
                 ) : files.length === 0 ? (
-                    <div className="text-center py-20 text-[#8F9BB3]">No files found</div>
+                    <div className="text-center py-20 text-[#8F9BB3]">The folder is empty</div>
                 ) : (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                        {files.map((file) => (
+                        {files.map((file: any) => (
                             <div
                                 key={file.id}
-                                className="bg-[#EEF5FA] rounded-[20px] overflow-hidden cursor-pointer hover:shadow-md transition-shadow group p-[10px]"
+                                data-file-item
+                                className={`bg-[#EEF5FA] rounded-[20px] overflow-hidden cursor-pointer transition-all group p-[10px] hover:shadow-sm ${file.isOptimistic ? 'opacity-50 pointer-events-none' : ''}`}
+                                onContextMenu={(e) => handleContextMenu(e, 'file', file)}
                                 onClick={() => openFile({
                                     url: file.url,
                                     name: file.name,
                                     type: getFileType(file.url)
                                 })}
                             >
-                                {/* Thumbnail Area */}
                                 <div className="aspect-[4/3] bg-white rounded-[12px] relative overflow-hidden">
                                     {isImageFile(file.name, file.mimeType) ? (
                                         <img
@@ -149,7 +306,6 @@ export default function CategoryPage() {
                                     )}
                                 </div>
 
-                                {/* File Info */}
                                 <div className="p-3 flex items-center justify-between">
                                     <div className="flex items-center gap-2 min-w-0 flex-1">
                                         <Image
@@ -158,22 +314,58 @@ export default function CategoryPage() {
                                             height={20}
                                             alt=""
                                         />
-                                        <span className="text-[13px] text-[#1A1A1A] truncate" title={getDisplayName(file.name)}>
-                                            {getDisplayName(file.name)}
-                                        </span>
+                                        {renamingItem?.id === file.id ? (
+                                            <input
+                                                ref={renameInputRef}
+                                                type="text"
+                                                value={renamingItem?.name || ''}
+                                                onChange={(e) => setRenamingItem(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') handleRenameSubmit();
+                                                    if (e.key === 'Escape') setRenamingItem(null);
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                                onContextMenu={(e) => e.stopPropagation()}
+                                                className="text-[13px] text-[#1A1A1A] font-medium w-full bg-white border border-[#00AAFF] rounded px-1 outline-none"
+                                            />
+                                        ) : (
+                                            <span className="text-[13px] text-[#1A1A1A] truncate" title={getDisplayName(file.name)}>
+                                                {getDisplayName(file.name)}
+                                            </span>
+                                        )}
                                     </div>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); /* TODO: Options menu */ }}
-                                        className="p-1 text-[#8F9BB3] hover:text-[#1A1A1A] opacity-0 group-hover:opacity-100 transition-opacity"
-                                    >
-                                        <MoreVertical size={18} />
-                                    </button>
                                 </div>
                             </div>
                         ))}
                     </div>
                 )}
             </div>
+
+            <FileUploadModal
+                isOpen={isUploadModalOpen}
+                onClose={() => setIsUploadModalOpen(false)}
+                onUpload={(files) => {
+                    files.forEach(file => uploadFileMutation.mutate(file));
+                }}
+            />
+
+            <PropertiesModal
+                isOpen={propertiesModal.isOpen}
+                onClose={() => setPropertiesModal({ ...propertiesModal, isOpen: false })}
+                item={propertiesModal.item}
+                type={propertiesModal.type}
+            />
+
+            {contextMenu && (
+                <ContextMenu
+                    x={contextMenu.x}
+                    y={contextMenu.y}
+                    type={contextMenu.type}
+                    onAction={handleContextAction}
+                    onClose={() => setContextMenu(null)}
+                    hasClipboard={!!clipboard}
+                />
+            )}
         </div>
     );
 }
