@@ -14,23 +14,37 @@ import { PropertyFilters, PropertyFilterValues } from '@/components/off-plan-pro
 import { SortMenu, SortConfig } from '@/components/properties/sort-menu';
 import { useStickyFilter } from '@/hooks/use-sticky-filter';
 
+// Default filter values for this page
+const defaultFilters: PropertyFilterValues = {
+    areaExpertIds: [],
+    projectExpertIds: [],
+    propertyTypes: [],
+    minPrice: 0,
+    maxPrice: 100000000,
+    minArea: 0,
+    maxArea: 50000,
+    status: '',
+    reference: '',
+    location: '',
+    permitNumber: '',
+};
+
 export default function OffPlanAgentsPropertiesPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+    const [filterKey, setFilterKey] = useState(0); // Key to force re-mount of filters
     const [sortConfig, setSortConfig] = useState<SortConfig>({ sortBy: 'date', sortOrder: 'desc' });
-    const [filters, setFilters] = useState<PropertyFilterValues>({
-        areaExpertIds: [],
-        projectExpertIds: [],
-        propertyTypes: [],
-        minPrice: 0,
-        maxPrice: 100000000,
-        minArea: 0,
-        maxArea: 50000,
-        status: '',
-        reference: '',
-        location: '',
-        permitNumber: '',
-    });
+    const [filters, setFilters] = useState<PropertyFilterValues>(defaultFilters);
+
+    // Function to toggle filters and reset on close
+    const handleToggleFilters = () => {
+        if (isFiltersOpen) {
+            // Closing filters - reset to defaults
+            setFilters(defaultFilters);
+            setFilterKey(prev => prev + 1); // Force re-mount of filter component
+        }
+        setIsFiltersOpen(!isFiltersOpen);
+    };
 
     // Fetch aggregates for dynamic filter ranges
     const { data: aggregates } = useQuery({
@@ -63,6 +77,7 @@ export default function OffPlanAgentsPropertiesPage() {
             {isFiltersOpen && (
                 <div className="w-[340px] flex-shrink-0 bg-white border-r border-[#EDF1F7] p-6 h-screen sticky top-0 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     <PropertyFilters
+                        key={filterKey}
                         onFiltersChange={setFilters}
                         minPrice={aggregates?.minPrice}
                         maxPrice={aggregates?.maxPrice}
@@ -93,9 +108,8 @@ export default function OffPlanAgentsPropertiesPage() {
                 {/* Search & Filters Bar - Sticky */}
                 <div
                     ref={filterBarRef}
-                    className={`flex items-center gap-3 bg-white py-4 mb-8 rounded-xl transition-all z-10 ${
-                        isSticky ? 'sticky top-0' : ''
-                    }`}
+                    className={`flex items-center gap-3 bg-white py-4 mb-8 rounded-xl transition-all z-10 ${isSticky ? 'sticky top-0' : ''
+                        }`}
                 >
                     {/* Search */}
                     <div className="relative flex-1 max-w-[400px]">
@@ -111,7 +125,7 @@ export default function OffPlanAgentsPropertiesPage() {
 
                     <Button
                         variant="outline"
-                        onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                        onClick={handleToggleFilters}
                         className={`h-[46px] px-5 rounded-lg border-[#EDF1F7] text-sm font-medium gap-2 shadow-none border-none transition-colors ${isFiltersOpen
                             ? 'bg-[#E0F2FE] text-[#0BA5EC] hover:bg-[#BAE6FD]'
                             : 'bg-white text-[#1A1A1A] hover:bg-gray-50'

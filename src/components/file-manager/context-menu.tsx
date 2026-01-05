@@ -1,19 +1,21 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Copy, Scissors, Edit2, Trash2, Clipboard, Info, Palette } from 'lucide-react';
+import { Copy, Scissors, Edit2, Trash2, Clipboard, Info, Palette, CheckSquare } from 'lucide-react';
 import { folderColors } from '@/lib/utils/folder-colors';
 
 interface ContextMenuProps {
     x: number;
     y: number;
     onClose: () => void;
-    onAction: (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste' | 'properties' | 'color', color?: string) => void;
+    onAction: (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste' | 'properties' | 'color' | 'mark', color?: string) => void;
     type: 'file' | 'folder' | 'empty';
     hasClipboard: boolean;
+    isMarkingMode?: boolean;
+    selectedCount?: number;
 }
 
-export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, onAction, type, hasClipboard }) => {
+export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, onAction, type, hasClipboard, isMarkingMode = false, selectedCount = 0 }) => {
     const menuRef = useRef<HTMLDivElement>(null);
     const [showColorSubmenu, setShowColorSubmenu] = useState(false);
     const timerRef = useRef<any>(null);
@@ -65,10 +67,13 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ x, y, onClose, onActio
     }, [x, y]);
 
     const menuItems = [
+        // Mark option - always available
+        { icon: <CheckSquare size={16} />, label: isMarkingMode ? 'Exit Marking Mode' : 'Mark', action: 'mark' as const },
+        { type: 'separator' as const },
         ...(type !== 'empty' ? [
             { icon: <Copy size={16} />, label: 'Copy', action: 'copy' as const },
             { icon: <Scissors size={16} />, label: 'Cut', action: 'cut' as const },
-            { icon: <Edit2 size={16} />, label: 'Rename', action: 'rename' as const },
+            ...(selectedCount <= 1 ? [{ icon: <Edit2 size={16} />, label: 'Rename', action: 'rename' as const }] : []),
             ...(type === 'folder' ? [
                 { icon: <Palette size={16} />, label: 'Label Color', action: 'color' as const, hasSubmenu: true }
             ] : []),

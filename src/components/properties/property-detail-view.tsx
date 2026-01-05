@@ -361,6 +361,15 @@ export function PropertyDetailView({ data, onEdit, onPublish, onUnpublish, isPub
                         className="object-cover"
                         priority
                     />
+                    {/* Edit icon at top right corner */}
+                    {onEdit && (
+                        <button
+                            onClick={onEdit}
+                            className="absolute top-3 right-3 h-9 w-9 flex items-center justify-center rounded-full bg-white/90 backdrop-blur-sm text-[#1A1A1A] hover:bg-white hover:scale-105 transition-all duration-200 shadow-sm border border-[#EDF1F7]"
+                        >
+                            <Edit3 className="h-4 w-4" />
+                        </button>
+                    )}
                 </div>
 
                 <div className="space-y-[20px] flex-1">

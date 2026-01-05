@@ -7,14 +7,13 @@ export type ClipboardItemType = 'file' | 'folder';
 
 export interface ClipboardItem {
     action: ClipboardAction;
-    type: ClipboardItemType;
-    item: any;
+    items: { type: ClipboardItemType, item: any }[];
 }
 
 interface ClipboardContextType {
     clipboard: ClipboardItem | null;
-    copyToClipboard: (type: ClipboardItemType, item: any) => void;
-    cutToClipboard: (type: ClipboardItemType, item: any) => void;
+    copyToClipboard: (items: { type: ClipboardItemType, item: any }[]) => void;
+    cutToClipboard: (items: { type: ClipboardItemType, item: any }[]) => void;
     clearClipboard: () => void;
 }
 
@@ -23,12 +22,12 @@ const ClipboardContext = createContext<ClipboardContextType | undefined>(undefin
 export function ClipboardProvider({ children }: { children: ReactNode }) {
     const [clipboard, setClipboard] = useState<ClipboardItem | null>(null);
 
-    const copyToClipboard = (type: ClipboardItemType, item: any) => {
-        setClipboard({ action: 'copy', type, item });
+    const copyToClipboard = (items: { type: ClipboardItemType, item: any }[]) => {
+        setClipboard({ action: 'copy', items });
     };
 
-    const cutToClipboard = (type: ClipboardItemType, item: any) => {
-        setClipboard({ action: 'cut', type, item });
+    const cutToClipboard = (items: { type: ClipboardItemType, item: any }[]) => {
+        setClipboard({ action: 'cut', items });
     };
 
     const clearClipboard = () => {

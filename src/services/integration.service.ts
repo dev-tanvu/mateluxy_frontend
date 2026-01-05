@@ -54,3 +54,13 @@ export const sendTestNotification = async (): Promise<void> => {
 export const updateSystemSettings = async (timeZone: string) => {
     return updateIntegration('system_settings', { isEnabled: true, credentials: { timeZone } });
 };
+
+// Get Google Maps API Key from integration config
+export const getGoogleMapsApiKey = async (): Promise<string | null> => {
+    try {
+        const response = await api.get<{ apiKey: string | null }>('/integrations/google-maps-key');
+        return response.data.apiKey;
+    } catch {
+        return null;
+    }
+};

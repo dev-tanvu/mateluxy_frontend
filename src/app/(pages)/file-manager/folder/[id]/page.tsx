@@ -67,7 +67,8 @@ export default function FolderPage() {
     const folderInputRef = useRef<HTMLInputElement>(null);
 
     // Global Clipboard Context
-    const { clipboard, copyToClipboard, cutToClipboard, clearClipboard } = useClipboard();
+    // Global Clipboard Context
+    const { clipboard, copyToClipboard: globalCopy, cutToClipboard: globalCut, clearClipboard } = useClipboard();
 
     // Context Menu State
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, type: 'file' | 'folder' | 'empty', target: any } | null>(null);
@@ -78,6 +79,69 @@ export default function FolderPage() {
 
     // Properties Modal State
     const [propertiesModal, setPropertiesModal] = useState<{ isOpen: boolean, item: any, type: 'file' | 'folder' }>({ isOpen: false, item: null, type: 'folder' });
+
+    // Selection State - for single and multi-select like Windows/Mac file manager
+    const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+    const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+
+    // Marking Mode
+    const [isMarkingMode, setIsMarkingMode] = useState(false);
+
+    // Handle item selection (single click)
+    const handleItemSelect = (e: React.MouseEvent, itemId: string, itemType: 'file' | 'folder', allItems: any[]) => {
+        e.stopPropagation();
+
+        const isCtrlPressed = e.ctrlKey || e.metaKey; // metaKey for Mac
+        const isShiftPressed = e.shiftKey;
+
+        setSelectedItems(prev => {
+            const newSelection = new Set(prev);
+
+            if (isShiftPressed && lastSelectedId) {
+                // Shift+click: select range
+                const allIds = allItems.map(item => item.id);
+                const lastIndex = allIds.indexOf(lastSelectedId);
+                const currentIndex = allIds.indexOf(itemId);
+
+                if (lastIndex !== -1 && currentIndex !== -1) {
+                    const start = Math.min(lastIndex, currentIndex);
+                    const end = Math.max(lastIndex, currentIndex);
+
+                    for (let i = start; i <= end; i++) {
+                        newSelection.add(allIds[i]);
+                    }
+                }
+            } else if (isCtrlPressed || isMarkingMode) {
+                // Ctrl+click OR Marking Mode: toggle selection
+                if (newSelection.has(itemId)) {
+                    newSelection.delete(itemId);
+                } else {
+                    newSelection.add(itemId);
+                }
+            } else {
+                // Normal click: select only this item
+                newSelection.clear();
+                newSelection.add(itemId);
+            }
+
+            return newSelection;
+        });
+
+        setLastSelectedId(itemId);
+    };
+
+    // Handle item open (double click)
+    const handleItemOpen = (itemId: string, itemType: 'file' | 'folder', item: any) => {
+        if (itemType === 'folder') {
+            router.push(`/file-manager/folder/${itemId}`);
+        } else {
+            openFile({
+                url: item.url,
+                name: item.name,
+                type: getFileType(item.url)
+            });
+        }
+    };
 
     useEffect(() => {
         if (renamingItem?.id && renameInputRef.current) {
@@ -107,6 +171,33 @@ export default function FolderPage() {
         queryFn: () => fileManagerService.getContents(folderId),
         enabled: !!folderId,
     });
+
+    // Data derivation
+    const folders = contentsData?.folders || [];
+    const files = contentsData?.files || [];
+    const breadcrumbs = contentsData?.breadcrumbs || [];
+    const currentFolderName = breadcrumbs.length > 0 ? breadcrumbs[breadcrumbs.length - 1].name : 'Folder';
+
+    // Filter based on active tab
+    const filteredFolders = activeTab === 'All' || activeTab === 'Folders' ? folders : [];
+    const filteredFiles = activeTab === 'All' ? files : activeTab === 'Folders' ? [] : files.filter((file: any) => {
+        const name = file.name || '';
+        const mime = file.mimeType?.toLowerCase() || '';
+        switch (activeTab) {
+            case 'Images': return isImageFile(name, mime);
+            case 'Videos': return isVideoFile(name, mime);
+            case 'Documents': return isDocumentFile(name, mime);
+            case 'Fonts': return isFontFile(name, mime);
+            case 'Archives': return isArchiveFile(name, mime);
+            default: return true;
+        }
+    });
+
+    const isImage = (name: string, mimeType: string) => isImageFile(name, mimeType);
+    const getDisplayName = (name: string) => name?.split('/').pop() || name;
+
+    const hasContent = filteredFolders.length > 0 || filteredFiles.length > 0;
+
 
     // Mutations
     const createFolderMutation = useMutation({
@@ -373,13 +464,77 @@ export default function FolderPage() {
         setContextMenu({ x: e.clientX, y: e.clientY, type, target });
     };
 
-    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste' | 'properties' | 'color', color?: string) => {
+    const copyToClipboard = (type: 'file' | 'folder', target: any) => {
+        let itemsToCopy: { type: 'file' | 'folder', item: any }[] = [];
+
+        if (selectedItems.has(target.id)) {
+            const allVisibleFolders = filteredFolders;
+            const allVisibleFiles = filteredFiles;
+
+            selectedItems.forEach(id => {
+                const folder = allVisibleFolders.find((f: any) => f.id === id);
+                if (folder) {
+                    itemsToCopy.push({ type: 'folder', item: folder });
+                } else {
+                    const file = allVisibleFiles.find((f: any) => f.id === id);
+                    if (file) {
+                        itemsToCopy.push({ type: 'file', item: file });
+                    }
+                }
+            });
+        } else {
+            itemsToCopy.push({ type, item: target });
+        }
+
+        if (itemsToCopy.length > 0) {
+            globalCopy(itemsToCopy);
+            toast.success(`Copied ${itemsToCopy.length} item${itemsToCopy.length > 1 ? 's' : ''} to clipboard`);
+        }
+    };
+
+    const cutToClipboard = (type: 'file' | 'folder', target: any) => {
+        let itemsToCut: { type: 'file' | 'folder', item: any }[] = [];
+
+        if (selectedItems.has(target.id)) {
+            const allVisibleFolders = filteredFolders;
+            const allVisibleFiles = filteredFiles;
+
+            selectedItems.forEach(id => {
+                const folder = allVisibleFolders.find((f: any) => f.id === id);
+                if (folder) {
+                    itemsToCut.push({ type: 'folder', item: folder });
+                } else {
+                    const file = allVisibleFiles.find((f: any) => f.id === id);
+                    if (file) {
+                        itemsToCut.push({ type: 'file', item: file });
+                    }
+                }
+            });
+        } else {
+            itemsToCut.push({ type, item: target });
+        }
+
+        if (itemsToCut.length > 0) {
+            globalCut(itemsToCut);
+            toast.success(`Cut ${itemsToCut.length} item${itemsToCut.length > 1 ? 's' : ''} to clipboard`);
+        }
+    };
+
+    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste' | 'properties' | 'color' | 'mark', color?: string) => {
         if (!contextMenu) return;
 
         const { type, target } = contextMenu;
         setContextMenu(null);
 
         switch (action) {
+            case 'mark':
+                setIsMarkingMode(prev => !prev);
+                if (!isMarkingMode) {
+                    if (target && target.id) {
+                        setSelectedItems(prev => new Set(prev).add(target.id));
+                    }
+                }
+                break;
             case 'copy':
                 copyToClipboard(type as any, target);
                 break;
@@ -390,27 +545,62 @@ export default function FolderPage() {
                 setRenamingItem({ id: target.id, name: target.name, type: type as any });
                 break;
             case 'delete':
-                if (type === 'folder') deleteFolderMutation.mutate(target.id);
-                else deleteFileMutation.mutate(target.id);
+                if (selectedItems.has(target.id) && selectedItems.size > 1) {
+                    // Bulk delete
+                    const itemsToDelete = Array.from(selectedItems);
+                    let deletedCount = 0;
+
+                    itemsToDelete.forEach(id => {
+                        const isFolder = folders.some((f: any) => f.id === id);
+                        if (isFolder) {
+                            deleteFolderMutation.mutate(id);
+                        } else {
+                            deleteFileMutation.mutate(id);
+                        }
+                        deletedCount++;
+                    });
+
+                    setSelectedItems(new Set());
+                    toast.success(`Deleted ${deletedCount} items`);
+                } else {
+                    if (type === 'folder') deleteFolderMutation.mutate(target.id);
+                    else deleteFileMutation.mutate(target.id);
+                }
                 break;
             case 'properties':
                 setPropertiesModal({ isOpen: true, item: target, type: type as any });
                 break;
             case 'color':
                 if (type === 'folder' && color) {
-                    updateColorMutation.mutate({ id: target.id, color });
+                    if (selectedItems.has(target.id) && selectedItems.size > 1) {
+                        // Bulk color update
+                        selectedItems.forEach(id => {
+                            const isFolder = folders.some((f: any) => f.id === id);
+                            if (isFolder) {
+                                updateColorMutation.mutate({ id, color });
+                            }
+                        });
+                    } else {
+                        updateColorMutation.mutate({ id: target.id, color });
+                    }
                 }
                 break;
             case 'paste':
-                if (clipboard) {
+                if (clipboard && clipboard.items.length > 0) {
                     const targetFolderId = type === 'folder' ? target.id : (folderId || null);
+
+                    clipboard.items.forEach(({ type: itemType, item }) => {
+                        if (clipboard.action === 'cut') {
+                            if (itemType === 'folder') moveFolderMutation.mutate({ id: item.id, targetParentId: targetFolderId });
+                            else moveFileMutation.mutate({ id: item.id, targetFolderId: targetFolderId });
+                        } else {
+                            if (itemType === 'folder') copyFolderMutation.mutate({ id: item.id, targetParentId: targetFolderId });
+                            else copyFileMutation.mutate({ id: item.id, targetFolderId: targetFolderId });
+                        }
+                    });
+
                     if (clipboard.action === 'cut') {
-                        if (clipboard.type === 'folder') moveFolderMutation.mutate({ id: clipboard.item.id, targetParentId: targetFolderId });
-                        else moveFileMutation.mutate({ id: clipboard.item.id, targetFolderId: targetFolderId });
                         clearClipboard();
-                    } else {
-                        if (clipboard.type === 'folder') copyFolderMutation.mutate({ id: clipboard.item.id, targetParentId: targetFolderId });
-                        else copyFileMutation.mutate({ id: clipboard.item.id, targetFolderId: targetFolderId });
                     }
                 }
                 break;
@@ -461,34 +651,15 @@ export default function FolderPage() {
         },
     });
 
+
+
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files?.[0]) {
             uploadFileMutation.mutate(e.target.files[0]);
         }
     };
 
-    const folders = contentsData?.folders || [];
-    const files = contentsData?.files || [];
-    const breadcrumbs = contentsData?.breadcrumbs || [];
-    const currentFolderName = breadcrumbs.length > 0 ? breadcrumbs[breadcrumbs.length - 1].name : 'Folder';
 
-    // Filter based on active tab
-    const filteredFolders = activeTab === 'All' || activeTab === 'Folders' ? folders : [];
-    const filteredFiles = activeTab === 'All' ? files : activeTab === 'Folders' ? [] : files.filter((file: any) => {
-        const name = file.name || '';
-        const mime = file.mimeType?.toLowerCase() || '';
-        switch (activeTab) {
-            case 'Images': return isImageFile(name, mime);
-            case 'Videos': return isVideoFile(name, mime);
-            case 'Documents': return isDocumentFile(name, mime);
-            case 'Fonts': return isFontFile(name, mime);
-            case 'Archives': return isArchiveFile(name, mime);
-            default: return true;
-        }
-    });
-
-    const isImage = (name: string, mimeType: string) => isImageFile(name, mimeType);
-    const getDisplayName = (name: string) => name?.split('/').pop() || name;
 
     const handleCreateFolder = async (e?: React.FormEvent) => {
         e?.preventDefault();
@@ -502,7 +673,7 @@ export default function FolderPage() {
         setNewFolderName('New Folder');
     };
 
-    const hasContent = filteredFolders.length > 0 || filteredFiles.length > 0;
+
 
     // Removal of full page loading to allow for granular skeletons
     // if (isLoading) return <div className="min-h-screen bg-white flex items-center justify-center text-[#8F9BB3]">Loading...</div>;
@@ -543,6 +714,15 @@ export default function FolderPage() {
             {/* Content Container to fill space for right-click */}
             <div
                 className="flex-1"
+                onClick={(e) => {
+                    // Clear selection when clicking on empty area
+                    const target = e.target as HTMLElement;
+                    const isOnItem = target.closest('[data-file-item]') || target.closest('[data-folder-item]');
+                    if (!isOnItem) {
+                        setSelectedItems(new Set());
+                        setLastSelectedId(null);
+                    }
+                }}
                 onContextMenu={(e) => {
                     // Check if clicking on a file/folder item by traversing up from target
                     const target = e.target as HTMLElement;
@@ -591,13 +771,15 @@ export default function FolderPage() {
                             )}
 
                             {filteredFolders.map((folder: any) => {
+                                const isSelected = selectedItems.has(folder.id);
                                 return (
                                     <div
                                         key={folder.id}
                                         data-folder-item
-                                        onClick={() => !folder.isOptimistic && router.push(`/file-manager/folder/${folder.id}`)}
+                                        onClick={(e) => !folder.isOptimistic && handleItemSelect(e, folder.id, 'folder', filteredFolders)}
+                                        onDoubleClick={() => !folder.isOptimistic && handleItemOpen(folder.id, 'folder', folder)}
                                         onContextMenu={(e) => handleContextMenu(e, 'folder', folder)}
-                                        className={`rounded-[16px] transition-all group ${folder.isOptimistic ? 'opacity-50 cursor-default' : 'cursor-pointer hover:bg-gray-50'}`}
+                                        className={`rounded-[16px] transition-all group ${folder.isOptimistic ? 'opacity-50 cursor-default' : 'cursor-pointer hover:bg-gray-50'} ${isSelected ? 'ring-2 ring-[#00AAFF] bg-[#F0F9FF]' : ''}`}
                                     >
                                         <div className="flex items-center justify-center pt-8 pb-4 relative">
                                             <Image
@@ -648,70 +830,96 @@ export default function FolderPage() {
                             {/* Skeleton Loading State for Files */}
                             {isLoading && (activeTab === 'All' || activeTab !== 'Folders') && [1, 2, 3, 4, 5].map((i) => <FileCardSkeleton key={`file-skele-${i}`} />)}
 
-                            {filteredFiles.map((file: any) => (
-                                <div
-                                    key={file.id}
-                                    data-file-item
-                                    className={`bg-[#EEF5FA] rounded-[20px] overflow-hidden group p-[10px] transition-all ${file.isOptimistic ? 'opacity-50 cursor-default pointer-events-none' : 'cursor-pointer hover:shadow-sm'}`}
-                                    onContextMenu={(e) => handleContextMenu(e, 'file', file)}
-                                    onClick={() => !file.isOptimistic && openFile({
-                                        url: file.url,
-                                        name: file.name,
-                                        type: getFileType(file.url)
-                                    })}
-                                >
-                                    {/* Thumbnail Area */}
-                                    <div className="aspect-[4/3] bg-white rounded-[12px] relative overflow-hidden">
-                                        {isImage(file.name, file.mimeType) && !file.isOptimistic ? (
-                                            <img
-                                                src={file.url}
-                                                alt={getDisplayName(file.name)}
-                                                className="w-full h-full object-cover"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center">
-                                                <Image
-                                                    src={getFileIconPath(file.name, file.mimeType)}
-                                                    width={60}
-                                                    height={60}
-                                                    alt="File"
-                                                />
+                            {filteredFiles.map((file: any) => {
+                                const isSelected = selectedItems.has(file.id);
+                                return (
+                                    <div
+                                        key={file.id}
+                                        data-file-item
+                                        className={`rounded-[20px] overflow-hidden group p-[10px] transition-all relative ${file.isOptimistic ? 'opacity-50 cursor-default pointer-events-none' : 'cursor-pointer hover:shadow-sm'} ${isSelected ? 'bg-[#DBEAFE] ring-2 ring-[#00AAFF]' : 'bg-[#EEF5FA]'}`}
+                                        onContextMenu={(e) => handleContextMenu(e, 'file', file)}
+                                        onClick={(e) => !file.isOptimistic && handleItemSelect(e, file.id, 'file', filteredFiles)}
+                                        onDoubleClick={() => !file.isOptimistic && handleItemOpen(file.id, 'file', file)}
+                                    >
+                                        {/* Checkbox for marking mode */}
+                                        {isMarkingMode && (
+                                            <div
+                                                className="absolute top-3 left-3 z-10"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedItems(prev => {
+                                                        const newSet = new Set(prev);
+                                                        if (newSet.has(file.id)) {
+                                                            newSet.delete(file.id);
+                                                        } else {
+                                                            newSet.add(file.id);
+                                                        }
+                                                        return newSet;
+                                                    });
+                                                }}
+                                            >
+                                                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-[#00AAFF] border-[#00AAFF]' : 'bg-white border-gray-300 hover:border-[#00AAFF]'}`}>
+                                                    {isSelected && (
+                                                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
-                                    </div>
-
-                                    {/* File Info */}
-                                    <div className="p-3 flex items-center justify-between">
-                                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                                            <Image
-                                                src={getFileIconPath(file.name, file.mimeType)}
-                                                width={20}
-                                                height={20}
-                                                alt=""
-                                            />
-                                            {renamingItem?.id === file.id ? (
-                                                <input
-                                                    ref={renameInputRef}
-                                                    type="text"
-                                                    value={renamingItem?.name || ''}
-                                                    onChange={(e) => setRenamingItem(prev => prev ? { ...prev, name: e.target.value } : null)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') handleRenameSubmit();
-                                                        if (e.key === 'Escape') setRenamingItem(null);
-                                                    }}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    onContextMenu={(e) => e.stopPropagation()}
-                                                    className="text-[13px] text-[#1A1A1A] font-medium w-full bg-white border border-[#00AAFF] rounded px-1 outline-none"
+                                        {/* Thumbnail Area */}
+                                        <div className="aspect-[4/3] bg-white rounded-[12px] relative overflow-hidden">
+                                            {isImage(file.name, file.mimeType) && !file.isOptimistic ? (
+                                                <img
+                                                    src={file.url}
+                                                    alt={getDisplayName(file.name)}
+                                                    className="w-full h-full object-cover"
                                                 />
                                             ) : (
-                                                <span className="text-[13px] text-[#1A1A1A] truncate" title={getDisplayName(file.name)}>
-                                                    {file.isOptimistic ? 'Saving...' : getDisplayName(file.name)}
-                                                </span>
+                                                <div className="w-full h-full flex items-center justify-center">
+                                                    <Image
+                                                        src={getFileIconPath(file.name, file.mimeType)}
+                                                        width={60}
+                                                        height={60}
+                                                        alt="File"
+                                                    />
+                                                </div>
                                             )}
                                         </div>
+
+                                        {/* File Info */}
+                                        <div className="p-3 flex items-center justify-between">
+                                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                <Image
+                                                    src={getFileIconPath(file.name, file.mimeType)}
+                                                    width={20}
+                                                    height={20}
+                                                    alt=""
+                                                />
+                                                {renamingItem?.id === file.id ? (
+                                                    <input
+                                                        ref={renameInputRef}
+                                                        type="text"
+                                                        value={renamingItem?.name || ''}
+                                                        onChange={(e) => setRenamingItem(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') handleRenameSubmit();
+                                                            if (e.key === 'Escape') setRenamingItem(null);
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        onContextMenu={(e) => e.stopPropagation()}
+                                                        className="text-[13px] text-[#1A1A1A] font-medium w-full bg-white border border-[#00AAFF] rounded px-1 outline-none"
+                                                    />
+                                                ) : (
+                                                    <span className="text-[13px] text-[#1A1A1A] truncate" title={getDisplayName(file.name)}>
+                                                        {file.isOptimistic ? 'Saving...' : getDisplayName(file.name)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 )}
@@ -747,6 +955,8 @@ export default function FolderPage() {
                     onAction={handleContextAction}
                     onClose={() => setContextMenu(null)}
                     hasClipboard={!!clipboard}
+                    isMarkingMode={isMarkingMode}
+                    selectedCount={selectedItems.size}
                 />
             )}
         </div>

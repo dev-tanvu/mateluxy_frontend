@@ -54,7 +54,7 @@ export default function FileManagerPage() {
     const folderInputRef = useRef<HTMLInputElement>(null);
 
     // Global Clipboard Context
-    const { clipboard, copyToClipboard, cutToClipboard, clearClipboard } = useClipboard();
+    const { clipboard, copyToClipboard: globalCopy, cutToClipboard: globalCut, clearClipboard } = useClipboard();
 
     // Context Menu State
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, type: 'file' | 'folder' | 'empty', target: any } | null>(null);
@@ -65,6 +65,78 @@ export default function FileManagerPage() {
 
     // Properties Modal State
     const [propertiesModal, setPropertiesModal] = useState<{ isOpen: boolean, item: any, type: 'file' | 'folder' }>({ isOpen: false, item: null, type: 'folder' });
+
+    // Selection State - for single and multi-select like Windows/Mac file manager
+    const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+    const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+
+    // Marking Mode - shows checkboxes on all items for bulk selection
+    const [isMarkingMode, setIsMarkingMode] = useState(false);
+
+    // Handle item selection (single click)
+    const handleItemSelect = (e: React.MouseEvent, itemId: string, itemType: 'file' | 'folder', allItems: any[]) => {
+        e.stopPropagation();
+
+        const isCtrlPressed = e.ctrlKey || e.metaKey; // metaKey for Mac
+        const isShiftPressed = e.shiftKey;
+
+        setSelectedItems(prev => {
+            const newSelection = new Set(prev);
+
+            if (isShiftPressed && lastSelectedId) {
+                // Shift+click: select range
+                const allIds = allItems.map(item => item.id);
+                const lastIndex = allIds.indexOf(lastSelectedId);
+                const currentIndex = allIds.indexOf(itemId);
+
+                if (lastIndex !== -1 && currentIndex !== -1) {
+                    const start = Math.min(lastIndex, currentIndex);
+                    const end = Math.max(lastIndex, currentIndex);
+
+                    for (let i = start; i <= end; i++) {
+                        newSelection.add(allIds[i]);
+                    }
+                }
+            } else if (isCtrlPressed || isMarkingMode) {
+                // Ctrl+click OR Marking Mode: toggle selection
+                if (newSelection.has(itemId)) {
+                    newSelection.delete(itemId);
+                } else {
+                    newSelection.add(itemId);
+                }
+            } else {
+                // Normal click: select only this item
+                newSelection.clear();
+                newSelection.add(itemId);
+            }
+
+            return newSelection;
+        });
+
+        setLastSelectedId(itemId);
+    };
+
+    // Handle item open (double click)
+    const handleItemOpen = (itemId: string, itemType: 'file' | 'folder', item: any) => {
+        if (itemType === 'folder') {
+            router.push(`/file-manager/folder/${itemId}`);
+        } else {
+            openFile({
+                url: item.url,
+                name: item.name,
+                type: getFileType(item.url)
+            });
+        }
+    };
+
+    // Clear selection when clicking empty area
+    const handleClearSelection = (e: React.MouseEvent) => {
+        // Only clear if clicking on the container itself, not on items
+        if (e.target === e.currentTarget) {
+            setSelectedItems(new Set());
+            setLastSelectedId(null);
+        }
+    };
 
     useEffect(() => {
         if (renamingItem?.id && renameInputRef.current) {
@@ -429,13 +501,83 @@ export default function FileManagerPage() {
         setContextMenu({ x: e.clientX, y: e.clientY, type, target });
     };
 
-    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste' | 'properties' | 'color', color?: string) => {
+    const copyToClipboard = (type: 'file' | 'folder', target: any) => {
+        // If multiple items are selected and the target is one of them, copy all selected
+        // Otherwise copy just the target
+        let itemsToCopy: { type: 'file' | 'folder', item: any }[] = [];
+
+        if (selectedItems.has(target.id)) {
+            // Copy all selected items
+            const allVisibleFolders = folders; // Assuming 'folders' is available in scope
+            const allVisibleFiles = filteredFiles;
+
+            selectedItems.forEach(id => {
+                const folder = allVisibleFolders.find((f: any) => f.id === id);
+                if (folder) {
+                    itemsToCopy.push({ type: 'folder', item: folder });
+                } else {
+                    const file = allVisibleFiles.find((f: any) => f.id === id);
+                    if (file) {
+                        itemsToCopy.push({ type: 'file', item: file });
+                    }
+                }
+            });
+        } else {
+            itemsToCopy.push({ type, item: target });
+        }
+
+        if (itemsToCopy.length > 0) {
+            globalCopy(itemsToCopy);
+            toast.success(`Copied ${itemsToCopy.length} item${itemsToCopy.length > 1 ? 's' : ''} to clipboard`);
+        }
+    };
+
+    const cutToClipboard = (type: 'file' | 'folder', target: any) => {
+        // Same logic as copy
+        let itemsToCut: { type: 'file' | 'folder', item: any }[] = [];
+
+        if (selectedItems.has(target.id)) {
+            const allVisibleFolders = folders;
+            const allVisibleFiles = filteredFiles;
+
+            selectedItems.forEach(id => {
+                const folder = allVisibleFolders.find((f: any) => f.id === id);
+                if (folder) {
+                    itemsToCut.push({ type: 'folder', item: folder });
+                } else {
+                    const file = allVisibleFiles.find((f: any) => f.id === id);
+                    if (file) {
+                        itemsToCut.push({ type: 'file', item: file });
+                    }
+                }
+            });
+        } else {
+            itemsToCut.push({ type, item: target });
+        }
+
+        if (itemsToCut.length > 0) {
+            globalCut(itemsToCut);
+            toast.success(`Cut ${itemsToCut.length} item${itemsToCut.length > 1 ? 's' : ''} to clipboard`);
+        }
+    };
+
+    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste' | 'properties' | 'color' | 'mark', color?: string) => {
         if (!contextMenu) return;
 
         const { type, target } = contextMenu;
         setContextMenu(null);
 
         switch (action) {
+            case 'mark':
+                setIsMarkingMode(prev => !prev);
+                if (!isMarkingMode) {
+                    // Entering marking mode - keep current selection or start fresh
+                    // If clicking on an item, add it to selection
+                    if (target && target.id) {
+                        setSelectedItems(prev => new Set(prev).add(target.id));
+                    }
+                }
+                break;
             case 'copy':
                 copyToClipboard(type as any, target);
                 break;
@@ -446,27 +588,67 @@ export default function FileManagerPage() {
                 setRenamingItem({ id: target.id, name: target.name, type: type as any });
                 break;
             case 'delete':
-                if (type === 'folder') deleteFolderMutation.mutate(target.id);
-                else deleteFileMutation.mutate(target.id);
+                if (selectedItems.has(target.id) && selectedItems.size > 1) {
+                    // Bulk delete
+                    const itemsToDelete = Array.from(selectedItems);
+                    let deletedCount = 0;
+
+                    itemsToDelete.forEach(id => {
+                        // Try to find if it's a folder or file to call correct mutation
+                        // This is a bit tricky without knowing type of each ID directly.
+                        // We can check against visible lists.
+                        const isFolder = folders.some((f: any) => f.id === id);
+                        if (isFolder) {
+                            deleteFolderMutation.mutate(id);
+                        } else {
+                            deleteFileMutation.mutate(id);
+                        }
+                        deletedCount++;
+                    });
+
+                    // Clear selection after delete
+                    setSelectedItems(new Set());
+                    toast.success(`Deleted ${deletedCount} items`);
+                } else {
+                    // Single delete
+                    if (type === 'folder') deleteFolderMutation.mutate(target.id);
+                    else deleteFileMutation.mutate(target.id);
+                }
                 break;
             case 'properties':
                 setPropertiesModal({ isOpen: true, item: target, type: type as any });
                 break;
             case 'color':
                 if (type === 'folder' && color) {
-                    updateColorMutation.mutate({ id: target.id, color });
+                    if (selectedItems.has(target.id) && selectedItems.size > 1) {
+                        // Bulk color update
+                        selectedItems.forEach(id => {
+                            const isFolder = folders.some((f: any) => f.id === id);
+                            if (isFolder) {
+                                updateColorMutation.mutate({ id, color });
+                            }
+                        });
+                    } else {
+                        updateColorMutation.mutate({ id: target.id, color });
+                    }
                 }
                 break;
             case 'paste':
-                if (clipboard) {
+                if (clipboard && clipboard.items.length > 0) {
                     const targetFolderId = type === 'folder' ? target.id : null;
+
+                    clipboard.items.forEach(({ type: itemType, item }) => {
+                        if (clipboard.action === 'cut') {
+                            if (itemType === 'folder') moveFolderMutation.mutate({ id: item.id, targetParentId: targetFolderId });
+                            else moveFileMutation.mutate({ id: item.id, targetFolderId: targetFolderId });
+                        } else {
+                            if (itemType === 'folder') copyFolderMutation.mutate({ id: item.id, targetParentId: targetFolderId });
+                            else copyFileMutation.mutate({ id: item.id, targetFolderId: targetFolderId });
+                        }
+                    });
+
                     if (clipboard.action === 'cut') {
-                        if (clipboard.type === 'folder') moveFolderMutation.mutate({ id: clipboard.item.id, targetParentId: targetFolderId });
-                        else moveFileMutation.mutate({ id: clipboard.item.id, targetFolderId: targetFolderId });
                         clearClipboard();
-                    } else {
-                        if (clipboard.type === 'folder') copyFolderMutation.mutate({ id: clipboard.item.id, targetParentId: targetFolderId });
-                        else copyFileMutation.mutate({ id: clipboard.item.id, targetFolderId: targetFolderId });
                     }
                 }
                 break;
@@ -670,6 +852,15 @@ export default function FileManagerPage() {
             {/* Main Content Area Wrapper */}
             <div
                 className="flex-1 overflow-auto p-12 pr-8"
+                onClick={(e) => {
+                    // Clear selection when clicking on empty area
+                    const target = e.target as HTMLElement;
+                    const isOnItem = target.closest('[data-file-item]') || target.closest('[data-folder-item]');
+                    if (!isOnItem) {
+                        setSelectedItems(new Set());
+                        setLastSelectedId(null);
+                    }
+                }}
                 onContextMenu={(e) => {
                     // Check if clicking on a file/folder item by traversing up from target
                     const target = e.target as HTMLElement;
@@ -726,14 +917,42 @@ export default function FileManagerPage() {
                         [1, 2, 3].map((i) => <FolderCardSkeleton key={i} />)
                     ) : (
                         folders.slice(0, 3).map((folder: any) => {
+                            const isSelected = selectedItems.has(folder.id);
                             return (
                                 <div
                                     key={folder.id}
                                     data-folder-item
-                                    onClick={() => !folder.isOptimistic && router.push(`/file-manager/folder/${folder.id}`)}
+                                    onClick={(e) => !folder.isOptimistic && handleItemSelect(e, folder.id, 'folder', folders)}
+                                    onDoubleClick={() => !folder.isOptimistic && handleItemOpen(folder.id, 'folder', folder)}
                                     onContextMenu={(e) => handleContextMenu(e, 'folder', folder)}
-                                    className={`bg-white rounded-[12px] p-5 relative transition-all min-h-[120px] ${folder.isOptimistic ? 'opacity-50 cursor-default' : 'cursor-pointer hover:shadow-lg'}`}
+                                    className={`bg-white rounded-[12px] p-5 relative transition-all min-h-[120px] ${folder.isOptimistic ? 'opacity-50 cursor-default' : 'cursor-pointer hover:shadow-lg'} ${isSelected ? 'ring-2 ring-[#00AAFF] bg-[#F0F9FF]' : ''}`}
                                 >
+                                    {/* Checkbox for marking mode */}
+                                    {isMarkingMode && (
+                                        <div
+                                            className="absolute top-3 left-3 z-10"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setSelectedItems(prev => {
+                                                    const newSet = new Set(prev);
+                                                    if (newSet.has(folder.id)) {
+                                                        newSet.delete(folder.id);
+                                                    } else {
+                                                        newSet.add(folder.id);
+                                                    }
+                                                    return newSet;
+                                                });
+                                            }}
+                                        >
+                                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-[#00AAFF] border-[#00AAFF]' : 'bg-white border-gray-300 hover:border-[#00AAFF]'}`}>
+                                                {isSelected && (
+                                                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="flex flex-col h-full gap-3 min-w-0">
                                         <Image
                                             src="/svg/folder_icon.svg"
@@ -848,49 +1067,75 @@ export default function FileManagerPage() {
                                     </tr>
                                 ))
                             ) : (
-                                filteredFiles.slice(0, 10).map((file: any) => (
-                                    <tr
-                                        key={file.id}
-                                        data-file-item
-                                        onContextMenu={(e) => handleContextMenu(e, 'file', file)}
-                                        className={`group hover:bg-[#F2F7FA] transition-colors cursor-pointer ${file.isOptimistic ? 'opacity-50 pointer-events-none' : ''}`}
-                                        onClick={() => !file.isOptimistic && openFile({
-                                            url: file.url,
-                                            name: file.name,
-                                            type: getFileType(file.url)
-                                        })}
-                                    >
-                                        <td className="py-4 pl-6 flex items-center gap-4">
-                                            <div className="min-w-[50px] min-h-[50px] w-[50px] h-[50px] flex items-center justify-center bg-[#F9FBFF] rounded-[16px]">
-                                                <div className="transform scale-75">
-                                                    {getFileIcon(file.mimeType)}
+                                filteredFiles.slice(0, 10).map((file: any) => {
+                                    const isSelected = selectedItems.has(file.id);
+                                    return (
+                                        <tr
+                                            key={file.id}
+                                            data-file-item
+                                            onContextMenu={(e) => handleContextMenu(e, 'file', file)}
+                                            className={`group transition-colors cursor-pointer ${file.isOptimistic ? 'opacity-50 pointer-events-none' : ''} ${isSelected ? 'bg-[#E0F2FE]' : 'hover:bg-[#F2F7FA]'}`}
+                                            onClick={(e) => !file.isOptimistic && handleItemSelect(e, file.id, 'file', filteredFiles)}
+                                            onDoubleClick={() => !file.isOptimistic && handleItemOpen(file.id, 'file', file)}
+                                        >
+                                            <td className="py-4 pl-6 flex items-center gap-4 relative">
+                                                {/* Checkbox for marking mode */}
+                                                {isMarkingMode && (
+                                                    <div
+                                                        className="mr-2"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setSelectedItems(prev => {
+                                                                const newSet = new Set(prev);
+                                                                if (newSet.has(file.id)) {
+                                                                    newSet.delete(file.id);
+                                                                } else {
+                                                                    newSet.add(file.id);
+                                                                }
+                                                                return newSet;
+                                                            });
+                                                        }}
+                                                    >
+                                                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${isSelected ? 'bg-[#00AAFF] border-[#00AAFF]' : 'bg-white border-gray-300 hover:border-[#00AAFF]'}`}>
+                                                            {isSelected && (
+                                                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                                </svg>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <div className={`min-w-[50px] min-h-[50px] w-[50px] h-[50px] flex items-center justify-center rounded-[16px] ${isSelected ? 'bg-[#BAE6FD]' : 'bg-[#F9FBFF]'}`}>
+                                                    <div className="transform scale-75">
+                                                        {getFileIcon(file.mimeType)}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            {renamingItem?.id === file.id ? (
-                                                <input
-                                                    ref={renameInputRef}
-                                                    type="text"
-                                                    value={renamingItem?.name || ''}
-                                                    onChange={(e) => setRenamingItem(prev => prev ? { ...prev, name: e.target.value } : null)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter') handleRenameSubmit();
-                                                        if (e.key === 'Escape') setRenamingItem(null);
-                                                    }}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    onContextMenu={(e) => e.stopPropagation()}
-                                                    className="bg-white border border-[#00AAFF] rounded px-2 py-1 text-[14px] font-medium text-[#1A1A1A] outline-none"
-                                                />
-                                            ) : (
-                                                <span className="font-normal text-[#1A1A1A] text-[15px] truncate max-w-[200px]" title={file.name}>
-                                                    {file.isOptimistic ? 'Saving...' : file.name}
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="py-4 text-center text-[#8F9BB3] font-medium">{file.isOptimistic ? '-' : new Date(file.updatedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                                        <td className="py-4 text-center text-[#8F9BB3] uppercase font-medium">{getFileTypeLabel(file.mimeType, file.name)}</td>
-                                        <td className="py-4 text-right pr-6 text-[#8F9BB3] font-medium">{formatSize(file.size)}</td>
-                                    </tr>
-                                ))
+                                                {renamingItem?.id === file.id ? (
+                                                    <input
+                                                        ref={renameInputRef}
+                                                        type="text"
+                                                        value={renamingItem?.name || ''}
+                                                        onChange={(e) => setRenamingItem(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') handleRenameSubmit();
+                                                            if (e.key === 'Escape') setRenamingItem(null);
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        onContextMenu={(e) => e.stopPropagation()}
+                                                        className="bg-white border border-[#00AAFF] rounded px-2 py-1 text-[14px] font-medium text-[#1A1A1A] outline-none"
+                                                    />
+                                                ) : (
+                                                    <span className="font-normal text-[#1A1A1A] text-[15px] truncate max-w-[200px]" title={file.name}>
+                                                        {file.isOptimistic ? 'Saving...' : file.name}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="py-4 text-center text-[#8F9BB3] font-medium">{file.isOptimistic ? '-' : new Date(file.updatedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                                            <td className="py-4 text-center text-[#8F9BB3] uppercase font-medium">{getFileTypeLabel(file.mimeType, file.name)}</td>
+                                            <td className="py-4 text-right pr-6 text-[#8F9BB3] font-medium">{formatSize(file.size)}</td>
+                                        </tr>
+                                    );
+                                })
                             )}
                         </tbody>
                     </table>
@@ -1079,6 +1324,8 @@ export default function FileManagerPage() {
                     y={contextMenu.y}
                     type={contextMenu.type}
                     hasClipboard={!!clipboard}
+                    isMarkingMode={isMarkingMode}
+                    selectedCount={selectedItems.size}
                     onClose={() => setContextMenu(null)}
                     onAction={handleContextAction}
                 />
