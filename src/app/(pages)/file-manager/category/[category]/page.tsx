@@ -194,10 +194,10 @@ export default function CategoryPage() {
 
         switch (action) {
             case 'copy':
-                copyToClipboard(type as any, target);
+                copyToClipboard([{ type: type as any, item: target }]);
                 break;
             case 'cut':
-                cutToClipboard(type as any, target);
+                cutToClipboard([{ type: type as any, item: target }]);
                 break;
             case 'rename':
                 setRenamingItem({ id: target.id, name: target.name, type: type as any });
