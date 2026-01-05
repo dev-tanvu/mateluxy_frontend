@@ -187,12 +187,15 @@ export default function CategoryPage() {
         setContextMenu({ x: e.clientX, y: e.clientY, type, target });
     };
 
-    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste' | 'properties' | 'color', color?: string) => {
+    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste' | 'properties' | 'color' | 'mark', color?: string) => {
         if (!contextMenu) return;
         const { type, target } = contextMenu;
         setContextMenu(null);
 
         switch (action) {
+            case 'mark':
+                // Not implemented for category view yet
+                break;
             case 'copy':
                 copyToClipboard([{ type: type as any, item: target }]);
                 break;
