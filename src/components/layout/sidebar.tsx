@@ -5,17 +5,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
-    DndContext,
-    DragEndEvent,
-    closestCenter,
-    useSensor,
-    useSensors,
-    PointerSensor,
-    KeyboardSensor,
+    useDndMonitor,
 } from '@dnd-kit/core';
 import {
     SortableContext,
-    sortableKeyboardCoordinates,
     verticalListSortingStrategy,
     useSortable,
 } from '@dnd-kit/sortable';
@@ -153,16 +146,7 @@ export function Sidebar() {
     const [mounted, setMounted] = useState(false);
 
     // Sensors for drag-to-reorder
-    const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 8,
-            },
-        }),
-        useSensor(KeyboardSensor, {
-            coordinateGetter: sortableKeyboardCoordinates,
-        })
-    );
+
 
     // Initialize local menu order from user data or default
     useEffect(() => {
@@ -213,29 +197,33 @@ export function Sidebar() {
     }, [filteredMenuItems, localMenuOrder]);
 
     // Handle drag-to-reorder
-    const handleDragEnd = useCallback((event: DragEndEvent) => {
-        const { active, over } = event;
+    useDndMonitor({
+        onDragEnd(event) {
+            const { active, over } = event;
 
-        if (!over || active.id === over.id) return;
+            if (!over || active.id === over.id) return;
 
-        const oldIndex = sortedMenuItems.findIndex(item => item.href === active.id);
-        const newIndex = sortedMenuItems.findIndex(item => item.href === over.id);
+            const oldIndex = sortedMenuItems.findIndex(item => item.href === active.id);
+            const newIndex = sortedMenuItems.findIndex(item => item.href === over.id);
 
-        if (oldIndex === -1 || newIndex === -1) return;
+            // If indexes are not found, it means the drag/drop presumably happened elsewhere (e.g. to bottom nav)
+            // or involved items not in this list.
+            if (oldIndex === -1 || newIndex === -1) return;
 
-        // Create new order
-        const newItems = [...sortedMenuItems];
-        const [removed] = newItems.splice(oldIndex, 1);
-        newItems.splice(newIndex, 0, removed);
+            // Create new order
+            const newItems = [...sortedMenuItems];
+            const [removed] = newItems.splice(oldIndex, 1);
+            newItems.splice(newIndex, 0, removed);
 
-        const newOrder = newItems.map(item => item.href);
+            const newOrder = newItems.map(item => item.href);
 
-        // Update local state immediately (optimistic)
-        setLocalMenuOrder(newOrder);
+            // Update local state immediately (optimistic)
+            setLocalMenuOrder(newOrder);
 
-        // Save to backend (auto-save)
-        updateMenuOrder(newOrder);
-    }, [sortedMenuItems, updateMenuOrder]);
+            // Save to backend (auto-save)
+            updateMenuOrder(newOrder);
+        }
+    });
 
     return (
         <>
@@ -267,140 +255,136 @@ export function Sidebar() {
                 {/* Menu */}
                 <div className="relative z-10 flex-1 overflow-y-auto px-4 pt-6 pb-20 scrollbar-hide [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                     {mounted && (
-                        <DndContext
-                            sensors={sensors}
-                            collisionDetection={closestCenter}
-                            onDragEnd={handleDragEnd}
+
+                        <SortableContext
+                            items={sortedMenuItems.map(item => item.href)}
+                            strategy={verticalListSortingStrategy}
                         >
-                            <SortableContext
-                                items={sortedMenuItems.map(item => item.href)}
-                                strategy={verticalListSortingStrategy}
-                            >
-                                <nav className="space-y-1">
-                                    {sortedMenuItems.map((item) => {
-                                        const isParentActive = item.submenu?.some(sub => pathname === sub.href);
-                                        const isDirectActive = pathname === item.href;
-                                        const isExpanded = expandedMenu === item.title;
-                                        const isUnderDev = UNDER_DEVELOPMENT_ITEMS.includes(item.title);
+                            <nav className="space-y-1">
+                                {sortedMenuItems.map((item) => {
+                                    const isParentActive = item.submenu?.some(sub => pathname === sub.href);
+                                    const isDirectActive = pathname === item.href;
+                                    const isExpanded = expandedMenu === item.title;
+                                    const isUnderDev = UNDER_DEVELOPMENT_ITEMS.includes(item.title);
 
-                                        if (item.submenu) {
-                                            return (
-                                                <SortableMenuItem key={item.title} item={item} id={item.href}>
-                                                    <div>
-                                                        <div
-                                                            onClick={() => toggleMenu(item.title)}
-                                                            className={cn(
-                                                                "group flex w-full items-center justify-between rounded-xl px-3 py-3 text-[15px] font-medium transition-all cursor-pointer",
-                                                                isParentActive
-                                                                    ? "bg-[#00AAFF] text-white shadow-sm"
-                                                                    : "text-[#727C90] hover:bg-gray-50"
-                                                            )}
-                                                        >
-                                                            <div className="flex items-center gap-3">
-                                                                <item.icon className={cn("h-5 w-5", isParentActive ? "text-white" : "text-[#727C90]")} />
-                                                                <span>{item.title}</span>
-                                                            </div>
-                                                            <div
-                                                                className="p-1 hover:bg-white/10 rounded-full transition-colors"
-                                                            >
-                                                                <ChevronDown
-                                                                    className={cn(
-                                                                        "h-4 w-4 transition-transform duration-200",
-                                                                        isParentActive ? "text-white" : "text-[#727C90]",
-                                                                        isExpanded ? "rotate-180" : ""
-                                                                    )}
-                                                                />
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Submenu with hierarchy lines */}
-                                                        {isExpanded && (
-                                                            <div className="ml-6 mt-1 relative">
-                                                                {/* Vertical hierarchy line */}
-                                                                <div className="absolute left-0 top-0 bottom-2 w-px bg-[#E4E9EE]" />
-
-                                                                <div className="space-y-0">
-                                                                    {item.submenu.map((sub, index) => {
-                                                                        const isSubActive = pathname === sub.href;
-                                                                        return (
-                                                                            <div key={sub.title} className="relative">
-                                                                                {/* Horizontal branch line */}
-                                                                                <div className="absolute left-0 top-1/2 w-3 h-px bg-[#E4E9EE]" />
-
-                                                                                {sub.underDevelopment ? (
-                                                                                    <button
-                                                                                        onClick={() => handleUnderDevClick(sub.title)}
-                                                                                        className="block pl-5 py-2 text-[14px] font-medium transition-colors w-full text-left text-[#727C90] hover:bg-gray-50/50"
-                                                                                    >
-                                                                                        {sub.title}
-                                                                                    </button>
-                                                                                ) : (
-                                                                                    <Link
-                                                                                        href={sub.href}
-                                                                                        className={cn(
-                                                                                            "block pl-5 py-2 text-[14px] font-medium transition-colors",
-                                                                                            isSubActive
-                                                                                                ? "text-[#00AAFF]"
-                                                                                                : "text-[#727C90] hover:bg-gray-50/50"
-                                                                                        )}
-                                                                                    >
-                                                                                        {sub.title}
-                                                                                    </Link>
-                                                                                )}
-                                                                            </div>
-                                                                        );
-                                                                    })}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </SortableMenuItem>
-                                            );
-                                        }
-
-                                        // Handle under development items
-                                        if (isUnderDev) {
-                                            return (
-                                                <SortableMenuItem key={item.title} item={item} id={item.href}>
-                                                    <button
-                                                        onClick={() => handleUnderDevClick(item.title)}
+                                    if (item.submenu) {
+                                        return (
+                                            <SortableMenuItem key={item.title} item={item} id={item.href}>
+                                                <div>
+                                                    <div
+                                                        onClick={() => toggleMenu(item.title)}
                                                         className={cn(
-                                                            "group flex w-full items-center justify-between rounded-xl px-3 py-3 text-[15px] font-medium transition-all",
-                                                            "text-[#727C90] hover:bg-gray-50"
+                                                            "group flex w-full items-center justify-between rounded-xl px-3 py-3 text-[15px] font-medium transition-all cursor-pointer",
+                                                            isParentActive
+                                                                ? "bg-[#00AAFF] text-white shadow-sm"
+                                                                : "text-[#727C90] hover:bg-gray-50"
                                                         )}
                                                     >
                                                         <div className="flex items-center gap-3">
-                                                            <item.icon className="h-5 w-5 text-[#727C90]" />
+                                                            <item.icon className={cn("h-5 w-5", isParentActive ? "text-white" : "text-[#727C90]")} />
                                                             <span>{item.title}</span>
                                                         </div>
-                                                    </button>
-                                                </SortableMenuItem>
-                                            );
-                                        }
+                                                        <div
+                                                            className="p-1 hover:bg-white/10 rounded-full transition-colors"
+                                                        >
+                                                            <ChevronDown
+                                                                className={cn(
+                                                                    "h-4 w-4 transition-transform duration-200",
+                                                                    isParentActive ? "text-white" : "text-[#727C90]",
+                                                                    isExpanded ? "rotate-180" : ""
+                                                                )}
+                                                            />
+                                                        </div>
+                                                    </div>
 
+                                                    {/* Submenu with hierarchy lines */}
+                                                    {isExpanded && (
+                                                        <div className="ml-6 mt-1 relative">
+                                                            {/* Vertical hierarchy line */}
+                                                            <div className="absolute left-0 top-0 bottom-2 w-px bg-[#E4E9EE]" />
+
+                                                            <div className="space-y-0">
+                                                                {item.submenu.map((sub, index) => {
+                                                                    const isSubActive = pathname === sub.href;
+                                                                    return (
+                                                                        <div key={sub.title} className="relative">
+                                                                            {/* Horizontal branch line */}
+                                                                            <div className="absolute left-0 top-1/2 w-3 h-px bg-[#E4E9EE]" />
+
+                                                                            {sub.underDevelopment ? (
+                                                                                <button
+                                                                                    onClick={() => handleUnderDevClick(sub.title)}
+                                                                                    className="block pl-5 py-2 text-[14px] font-medium transition-colors w-full text-left text-[#727C90] hover:bg-gray-50/50"
+                                                                                >
+                                                                                    {sub.title}
+                                                                                </button>
+                                                                            ) : (
+                                                                                <Link
+                                                                                    href={sub.href}
+                                                                                    className={cn(
+                                                                                        "block pl-5 py-2 text-[14px] font-medium transition-colors",
+                                                                                        isSubActive
+                                                                                            ? "text-[#00AAFF]"
+                                                                                            : "text-[#727C90] hover:bg-gray-50/50"
+                                                                                    )}
+                                                                                >
+                                                                                    {sub.title}
+                                                                                </Link>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </SortableMenuItem>
+                                        );
+                                    }
+
+                                    // Handle under development items
+                                    if (isUnderDev) {
                                         return (
                                             <SortableMenuItem key={item.title} item={item} id={item.href}>
-                                                <Link
-                                                    href={item.href}
-                                                    onClick={() => setExpandedMenu(null)}
+                                                <button
+                                                    onClick={() => handleUnderDevClick(item.title)}
                                                     className={cn(
                                                         "group flex w-full items-center justify-between rounded-xl px-3 py-3 text-[15px] font-medium transition-all",
-                                                        isDirectActive
-                                                            ? "bg-[#00AAFF] text-white shadow-sm"
-                                                            : "text-[#727C90] hover:bg-gray-50"
+                                                        "text-[#727C90] hover:bg-gray-50"
                                                     )}
                                                 >
                                                     <div className="flex items-center gap-3">
-                                                        <item.icon className={cn("h-5 w-5", isDirectActive ? "text-white" : "text-[#727C90]")} />
+                                                        <item.icon className="h-5 w-5 text-[#727C90]" />
                                                         <span>{item.title}</span>
                                                     </div>
-                                                </Link>
+                                                </button>
                                             </SortableMenuItem>
                                         );
-                                    })}
-                                </nav>
-                            </SortableContext>
-                        </DndContext>
+                                    }
+
+                                    return (
+                                        <SortableMenuItem key={item.title} item={item} id={item.href}>
+                                            <Link
+                                                href={item.href}
+                                                onClick={() => setExpandedMenu(null)}
+                                                className={cn(
+                                                    "group flex w-full items-center justify-between rounded-xl px-3 py-3 text-[15px] font-medium transition-all",
+                                                    isDirectActive
+                                                        ? "bg-[#00AAFF] text-white shadow-sm"
+                                                        : "text-[#727C90] hover:bg-gray-50"
+                                                )}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <item.icon className={cn("h-5 w-5", isDirectActive ? "text-white" : "text-[#727C90]")} />
+                                                    <span>{item.title}</span>
+                                                </div>
+                                            </Link>
+                                        </SortableMenuItem>
+                                    );
+                                })}
+                            </nav>
+                        </SortableContext>
+
                     )}
                 </div>
             </div>

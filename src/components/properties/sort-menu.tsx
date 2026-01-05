@@ -31,7 +31,7 @@ export function SortMenu({ value, onChange }: SortMenuProps) {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="bg-white border-[#EDF1F7] text-[#1A1A1A] h-[44px] rounded-xl gap-2 hover:bg-gray-50 min-w-[140px] justify-between">
+                <Button variant="outline" suppressHydrationWarning className="bg-white border-[#EDF1F7] text-[#1A1A1A] h-[44px] rounded-xl gap-2 hover:bg-gray-50 min-w-[140px] justify-between">
                     <span>Sort by <span className="text-[#8F9BB3] ml-1">{getLabel()}</span></span>
                 </Button>
             </DropdownMenuTrigger>

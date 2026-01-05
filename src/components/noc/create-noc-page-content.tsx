@@ -41,6 +41,7 @@ interface NocFormData {
     rentalAmount: string;
     saleAmount: string;
     parking: string;
+    propertyNumber: string;
     // Step 3: Terms and Conditions
     agreementType: 'exclusive' | 'non-exclusive';
     periodMonths: number;
@@ -70,6 +71,7 @@ export interface NocData {
     rentalAmount: string;
     saleAmount: string;
     parking: string;
+    propertyNumber: string;
 }
 
 interface CreateNocPageContentProps {
@@ -106,6 +108,7 @@ const initialFormData: NocFormData = {
     rentalAmount: '',
     saleAmount: '',
     parking: '',
+    propertyNumber: '',
     agreementType: 'exclusive',
     periodMonths: 1,
     agreementDate: '',
@@ -224,6 +227,7 @@ export function CreateNocPageContent({ onNocCreated, onBack }: CreateNocPageCont
             formDataToSend.append('buildingProjectName', formData.buildingProjectName);
             formDataToSend.append('community', formData.community);
             formDataToSend.append('streetName', formData.streetName);
+            formDataToSend.append('propertyNumber', formData.propertyNumber);
             if (formData.location) formDataToSend.append('location', formData.location);
             if (formData.latitude) formDataToSend.append('latitude', formData.latitude.toString());
             if (formData.longitude) formDataToSend.append('longitude', formData.longitude.toString());
@@ -313,6 +317,7 @@ export function CreateNocPageContent({ onNocCreated, onBack }: CreateNocPageCont
                 buildingProjectName: formData.buildingProjectName,
                 community: formData.community,
                 streetName: formData.streetName,
+                propertyNumber: formData.propertyNumber,
                 buildUpArea: formData.buildUpArea,
                 plotArea: formData.plotArea,
                 bedrooms: formData.bedrooms,
@@ -450,27 +455,29 @@ export function CreateNocPageContent({ onNocCreated, onBack }: CreateNocPageCont
 
             {/* Right Panel - Form Content */}
             <div className="flex-1 flex flex-col overflow-hidden bg-white">
-                {/* NOC Header */}
-                <div className="p-6 border-b border-gray-100">
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <h2 className="text-lg font-bold text-gray-900">Mateluxy Real Estate Broker L.L.C</h2>
-                            <div className="text-sm text-gray-500 mt-1 space-y-0.5">
-                                <p>Tel: +971 4 572 5420</p>
-                                <p>Add: 601 Bay Square 13, Business Bay, Dubai, UAE.</p>
-                                <p>P.O. Box: 453467</p>
-                                <p>Email: info@mateluxy.com</p>
-                                <p>Website: www.mateluxy.com</p>
+                {/* NOC Header - Only visible in Step 1 */}
+                {currentStep === 1 && (
+                    <div className="p-6 border-b border-gray-100">
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <h2 className="text-lg font-bold text-gray-900">Mateluxy Real Estate Broker L.L.C</h2>
+                                <div className="text-sm text-gray-500 mt-1 space-y-0.5">
+                                    <p>Tel: +971 4 572 5420</p>
+                                    <p>Add: 601 Bay Square 13, Business Bay, Dubai, UAE.</p>
+                                    <p>P.O. Box: 453467</p>
+                                    <p>Email: info@mateluxy.com</p>
+                                    <p>Website: www.mateluxy.com</p>
+                                </div>
                             </div>
-                        </div>
-                        {/* Company Logo */}
-                        <div className="w-32 aspect-video overflow-hidden flex items-center justify-center"><img src="/Logo.png" alt="Mateluxy Logo" className="w-full h-full object-contain" /></div>
+                            {/* Company Logo */}
+                            <div className="w-32 aspect-video overflow-hidden flex items-center justify-center"><img src="/Logo.png" alt="Mateluxy Logo" className="w-full h-full object-contain" /></div>
 
+                        </div>
+                        <p className="text-sm font-semibold text-gray-700 mt-4">
+                            NOC / LISTING AGREEMENT/ AGREEMENT BETWEEN OWNER & BROKER
+                        </p>
                     </div>
-                    <p className="text-sm font-semibold text-gray-700 mt-4">
-                        NOC / LISTING AGREEMENT/ AGREEMENT BETWEEN OWNER & BROKER
-                    </p>
-                </div>
+                )}
 
                 {/* Form Content - Scrollable */}
                 <div className="flex-1 overflow-y-auto p-6">
@@ -608,6 +615,30 @@ export function CreateNocPageContent({ onNocCreated, onBack }: CreateNocPageCont
                                         className="h-12 border-gray-200 rounded-lg"
                                     />
                                 </div>
+                                <div className="space-y-2">
+                                    <Label className="text-sm text-gray-600">Property Number</Label>
+                                    <Input
+                                        placeholder="e.g. 101"
+                                        value={formData.propertyNumber}
+                                        onChange={(e) => handleInputChange('propertyNumber', e.target.value)}
+                                        className="h-12 border-gray-200 rounded-lg"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label className="text-sm text-gray-600">Street Name</Label>
+                                    <Input
+                                        placeholder="e.g. Sheikh Zayed Road"
+                                        value={formData.streetName}
+                                        onChange={(e) => handleInputChange('streetName', e.target.value)}
+                                        className="h-12 border-gray-200 rounded-lg"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                     <Label className="text-sm text-gray-600">Google Map Location</Label>
                                     <AddressAutocomplete
@@ -879,6 +910,6 @@ export function CreateNocPageContent({ onNocCreated, onBack }: CreateNocPageCont
                     </Button>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

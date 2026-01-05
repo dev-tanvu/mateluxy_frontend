@@ -23,6 +23,16 @@ export function PasswordList({ onEdit, searchTerm, maxItems, viewAllHref }: Pass
         queryFn: getPasswords,
     });
 
+    // State to track visibility of individual passwords by ID
+    const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+
+    const togglePasswordVisibility = (id: string) => {
+        setVisiblePasswords(prev => ({
+            ...prev,
+            [id]: !prev[id]
+        }));
+    };
+
     const deleteMutation = useMutation({
         mutationFn: deletePassword,
         onSuccess: () => {
@@ -144,17 +154,31 @@ export function PasswordList({ onEdit, searchTerm, maxItems, viewAllHref }: Pass
                                             <Lock className="h-3.5 w-3.5 text-gray-400" />
                                         </div>
                                         <input
-                                            type="password"
+                                            type={visiblePasswords[pw.id] ? "text" : "password"}
                                             readOnly
                                             value={pw.password}
-                                            className="block w-full h-10 pl-9 pr-9 bg-gray-50 border border-gray-100 rounded-xl text-xs text-gray-600 focus:outline-none focus:border-indigo-200 transition-colors"
+                                            className="block w-full h-10 pl-9 pr-14 bg-gray-50 border border-gray-100 rounded-xl text-xs text-gray-600 focus:outline-none focus:border-indigo-200 transition-colors"
                                         />
-                                        <button
-                                            onClick={() => handleCopy(pw.password)}
-                                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-300 hover:text-indigo-600 transition-colors"
-                                        >
-                                            <Copy className="h-3.5 w-3.5" />
-                                        </button>
+                                        <div className="absolute inset-y-0 right-0 flex items-center pr-2 gap-1">
+                                            <button
+                                                onClick={() => togglePasswordVisibility(pw.id)}
+                                                className="p-1.5 text-gray-300 hover:text-indigo-600 transition-colors"
+                                                title={visiblePasswords[pw.id] ? "Hide password" : "Show password"}
+                                            >
+                                                {visiblePasswords[pw.id] ? (
+                                                    <EyeOff className="h-3.5 w-3.5" />
+                                                ) : (
+                                                    <Eye className="h-3.5 w-3.5" />
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={() => handleCopy(pw.password)}
+                                                className="p-1.5 text-gray-300 hover:text-indigo-600 transition-colors"
+                                                title="Copy password"
+                                            >
+                                                <Copy className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </Card>

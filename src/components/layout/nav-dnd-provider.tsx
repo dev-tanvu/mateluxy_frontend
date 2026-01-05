@@ -21,7 +21,7 @@ interface DragItem {
     title: string;
     iconKey: string;
     href: string;
-    type: 'sidebar-item' | 'pinned-item';
+    type: 'sidebar-item' | 'sidebar-sortable' | 'pinned-item';
     submenu?: { title: string; href: string; underDevelopment?: boolean }[];
 }
 
@@ -82,7 +82,7 @@ export function NavDndProvider({ children }: NavDndProviderProps) {
 
         if (over && activeItem) {
             // Dropping sidebar item onto bottom nav drop zone
-            if (over.id === 'bottom-nav-drop-zone' && activeItem.type === 'sidebar-item') {
+            if (over.id === 'bottom-nav-drop-zone' && (activeItem.type === 'sidebar-item' || activeItem.type === 'sidebar-sortable')) {
                 if (!hasItem(activeItem.href)) {
                     addItem({
                         title: activeItem.title,

@@ -8,7 +8,7 @@ import { Sheet } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Loader2, Plus, Search, User, X } from 'lucide-react';
+import { Loader2, Plus, Search, User, X, Eye, EyeOff } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createAgentPassword, updateAgentPassword, AgentPassword } from '@/services/agent-password.service';
 import { toast } from 'sonner';
@@ -34,6 +34,7 @@ export function AddAgentPasswordSheet({ isOpen, onClose, entryToEdit }: AddAgent
     const queryClient = useQueryClient();
     const [agentSearchTerm, setAgentSearchTerm] = useState('');
     const [showDropdown, setShowDropdown] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -246,13 +247,26 @@ export function AddAgentPasswordSheet({ isOpen, onClose, entryToEdit }: AddAgent
                 {/* Password Field */}
                 <div className="space-y-2">
                     <Label htmlFor="password" className="text-sm font-medium text-gray-700">Password</Label>
-                    <Input
-                        id="password"
-                        type="text"
-                        placeholder="Enter password"
-                        className="h-[50px] bg-white border-gray-200"
-                        {...register('password')}
-                    />
+                    <div className="relative">
+                        <Input
+                            id="password"
+                            type={showPassword ? "text" : "password"}
+                            placeholder="Enter password"
+                            className="h-[50px] bg-white border-gray-200 pr-10"
+                            {...register('password')}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                            {showPassword ? (
+                                <EyeOff className="h-5 w-5" />
+                            ) : (
+                                <Eye className="h-5 w-5" />
+                            )}
+                        </button>
+                    </div>
                     {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
                 </div>
 

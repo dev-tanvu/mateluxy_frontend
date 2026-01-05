@@ -55,6 +55,8 @@ export interface Property {
     pfLocationId?: number;
     pfLocationPath?: string;
     leadsCount?: number;
+    projectStatus?: string;
+    completionDate?: string;
 }
 
 export interface CreatePropertyData {
@@ -94,6 +96,8 @@ export interface CreatePropertyData {
     isActive?: boolean;
     pfLocationId?: number;
     pfLocationPath?: string;
+    projectStatus?: string;
+    completionDate?: string;
 
     // Files
     coverPhoto?: File | string;
@@ -211,6 +215,9 @@ export const createProperty = async (data: CreatePropertyData): Promise<Property
         }
     });
 
+    // Explicitly append projectStatus and completionDate if they exist in data (handled by loop, but ensuring no exclusion)
+    // The loop above excludes only file keys and amenities, so projectStatus and completionDate strings will be included automatically.
+
     // Append amenities array
     if (data.amenities && data.amenities.length > 0) {
         data.amenities.forEach(amenity => {
@@ -224,8 +231,23 @@ export const createProperty = async (data: CreatePropertyData): Promise<Property
     }
 
     if (data.mediaImages && data.mediaImages.length > 0) {
-        data.mediaImages.forEach(file => {
-            formData.append('mediaImages', file);
+        data.mediaImages.forEach(item => {
+            if (item instanceof File) {
+                formData.append('mediaImages', item);
+            } else if (typeof item === 'string') {
+                // Append as string. Backend DTO now accepts mediaImages as string[] or []
+                // BUT FormData is flat. If we append 'mediaImages' multiple times with strings, NestJS @Body() will see it as array of strings?
+                // NestJS with FileFieldsInterceptor:
+                // The interceptor separates files into @UploadedFiles().
+                // The rest of the body fields go to @Body().
+                // If we append 'mediaImages' as 'http://...', it goes to body.
+                // If we append 'mediaImages' as File, it goes to files.
+                // We need to make sure the key name 'mediaImages' doesn't conflict or overwrite.
+                // Actually standard FormData behavior: same key -> array.
+                // But NestJS might treat 'mediaImages' in body separate from 'mediaImages' in files depending on Interceptor config.
+                // However, we added mediaImages: string[] to DTO.
+                formData.append('mediaImages', item);
+            }
         });
     }
 
@@ -277,8 +299,12 @@ export const updateProperty = async (id: string, data: Partial<CreatePropertyDat
     }
 
     if (data.mediaImages && data.mediaImages.length > 0) {
-        data.mediaImages.forEach(file => {
-            formData.append('mediaImages', file);
+        data.mediaImages.forEach(item => {
+            if (item instanceof File) {
+                formData.append('mediaImages', item);
+            } else if (typeof item === 'string') {
+                formData.append('mediaImages', item);
+            }
         });
     }
 

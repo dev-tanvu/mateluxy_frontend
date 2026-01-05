@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Pencil, Trash2, Plus } from 'lucide-react';
+import { Pencil, Trash2, Plus, Eye, EyeOff } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAgentPasswords, deleteAgentPassword, AgentPassword } from '@/services/agent-password.service';
 import { toast } from 'sonner';
@@ -13,6 +13,14 @@ export function AgentPasswordList() {
     const queryClient = useQueryClient();
     const [isSheetOpen, setIsSheetOpen] = useState(false);
     const [entryToEdit, setEntryToEdit] = useState<AgentPassword | null>(null);
+    const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+
+    const togglePasswordVisibility = (id: string) => {
+        setVisiblePasswords(prev => ({
+            ...prev,
+            [id]: !prev[id]
+        }));
+    };
 
     const { data: agents = [], isLoading } = useQuery({
         queryKey: ['agent-passwords'],
@@ -89,7 +97,22 @@ export function AgentPasswordList() {
                                         {agent.email}
                                     </a>
                                 </div>
-                                <div className="col-span-3 font-medium">{agent.password}</div>
+                                <div className="col-span-3 font-medium flex items-center gap-2">
+                                    <span className="font-mono text-sm">
+                                        {visiblePasswords[agent.id] ? agent.password : '••••••••'}
+                                    </span>
+                                    <button
+                                        onClick={() => togglePasswordVisibility(agent.id)}
+                                        className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                                        title={visiblePasswords[agent.id] ? "Hide password" : "Show password"}
+                                    >
+                                        {visiblePasswords[agent.id] ? (
+                                            <EyeOff className="h-4 w-4" />
+                                        ) : (
+                                            <Eye className="h-4 w-4" />
+                                        )}
+                                    </button>
+                                </div>
                                 <div className="col-span-2 flex items-center justify-end gap-3">
                                     <button
                                         onClick={() => handleEdit(agent)}

@@ -162,6 +162,9 @@ export function PropertyFormStep({ nocFile: initialNocFile, category: initialCat
             amenities: initialData?.amenities || [],
             // Agent
             assignedAgentId: initialData?.assignedAgentId || '',
+            // Project Status
+            projectStatus: initialData?.projectStatus || '',
+            completionDate: initialData?.completionDate || '',
         }
     });
 
@@ -213,6 +216,9 @@ export function PropertyFormStep({ nocFile: initialNocFile, category: initialCat
                 amenities: initialData.amenities || [],
                 // Agent
                 assignedAgentId: initialData.assignedAgentId || '',
+                // Project Status (For Sale properties)
+                projectStatus: initialData.projectStatus || '',
+                completionDate: initialData.completionDate || '',
             });
 
             // Update local file states
@@ -313,9 +319,10 @@ export function PropertyFormStep({ nocFile: initialNocFile, category: initialCat
                 propertyData.coverPhoto = data.coverPhoto;
             }
 
-            // If mediaImages is an array of Files
+            // If mediaImages is an array
             if (Array.isArray(data.mediaImages)) {
-                propertyData.mediaImages = data.mediaImages.filter((f: any) => f instanceof File);
+                // We now accept both Files (new uploads) and strings (existing URLs)
+                propertyData.mediaImages = data.mediaImages;
             }
 
             // Check if action was 'draft'
@@ -476,6 +483,7 @@ export function PropertyFormStep({ nocFile: initialNocFile, category: initialCat
                             control={control}
                             errors={errors}
                             watch={watch}
+                            purpose={purpose}
                         />
                     )}
                     {activeTab === 'locations' && (

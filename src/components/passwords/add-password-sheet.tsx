@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, Save, Check, Upload } from 'lucide-react';
+import { Loader2, Save, Check, Upload, Eye, EyeOff } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { userService } from '@/lib/services/user.service';
 import { createPassword, updatePassword, PasswordDetails } from '@/services/password.service';
@@ -39,6 +39,7 @@ export function AddPasswordSheet({ isOpen, onClose, passwordToEdit }: AddPasswor
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const { data: users = [] } = useQuery({
         queryKey: ['users'],
@@ -210,13 +211,26 @@ export function AddPasswordSheet({ isOpen, onClose, passwordToEdit }: AddPasswor
 
                 <div className="space-y-2">
                     <Label htmlFor="password" className="text-sm font-medium text-gray-700">Password</Label>
-                    <Input
-                        id="password"
-                        type="password"
-                        placeholder={passwordToEdit ? "Leave empty to keep current password" : "Enter secure password"}
-                        className="h-[50px] bg-white border-gray-200"
-                        {...register('password')}
-                    />
+                    <div className="relative">
+                        <Input
+                            id="password"
+                            type={showPassword ? "text" : "password"}
+                            placeholder={passwordToEdit ? "Leave empty to keep current password" : "Enter secure password"}
+                            className="h-[50px] bg-white border-gray-200 pr-10"
+                            {...register('password')}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                            {showPassword ? (
+                                <EyeOff className="h-5 w-5" />
+                            ) : (
+                                <Eye className="h-5 w-5" />
+                            )}
+                        </button>
+                    </div>
                     {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
                 </div>
 
