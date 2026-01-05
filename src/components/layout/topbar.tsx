@@ -160,7 +160,7 @@ export function Topbar() {
                             </button>
 
                             <a
-                                href="https://www.propertyfinder.ae"
+                                href="https://auth.propertyfinder.com/pfexpert/sign-in?country=ae&flow_type=sso&nonce=YrBi3MkQyrFue_VM2gE1SA&redirect_uri=https%3A%2F%2Fauth.propertyfinder.com%2Fbroker%2Frealms%2Fpropertyfinder%2Fbroker%2Fpfexpert%2Fendpoint&state=LN7kZCE2Y2ZZZPHqMbdMEvmBdZ9OJa2_33Km_FwEGjw.R_y71tQiHgU.puUAEuvzQz-Bl0zfWoNUjQ"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={() => setIsRapidToolsOpen(false)}
@@ -171,7 +171,7 @@ export function Topbar() {
                             </a>
 
                             <a
-                                href="https://www.bayut.com"
+                                href="https://www.bayut.com/profolio/signin"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={() => setIsRapidToolsOpen(false)}
@@ -182,7 +182,7 @@ export function Topbar() {
                             </a>
 
                             <a
-                                href="https://dubailand.gov.ae"
+                                href="https://dubailand.gov.ae/en/MyDLD/#/login/sso"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={() => setIsRapidToolsOpen(false)}
