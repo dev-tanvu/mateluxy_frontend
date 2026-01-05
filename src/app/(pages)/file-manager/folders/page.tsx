@@ -54,6 +54,51 @@ export default function AllFoldersPage() {
     // Properties Modal State
     const [propertiesModal, setPropertiesModal] = useState<{ isOpen: boolean, item: any, type: 'file' | 'folder' }>({ isOpen: false, item: null, type: 'folder' });
 
+    // Selection State
+    const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+    const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+    const [isMarkingMode, setIsMarkingMode] = useState(false);
+
+    // Handle item selection (single click)
+    const handleItemSelect = (e: React.MouseEvent, itemId: string, allItems: any[]) => {
+        e.stopPropagation();
+
+        const isCtrlPressed = e.ctrlKey || e.metaKey;
+        const isShiftPressed = e.shiftKey;
+
+        setSelectedItems(prev => {
+            const newSelection = new Set(prev);
+
+            if (isShiftPressed && lastSelectedId) {
+                // Shift+click: select range
+                const allIds = allItems.map(item => item.id);
+                const lastIndex = allIds.indexOf(lastSelectedId);
+                const currentIndex = allIds.indexOf(itemId);
+
+                if (lastIndex !== -1 && currentIndex !== -1) {
+                    const start = Math.min(lastIndex, currentIndex);
+                    const end = Math.max(lastIndex, currentIndex);
+                    for (let i = start; i <= end; i++) {
+                        newSelection.add(allIds[i]);
+                    }
+                }
+            } else if (isCtrlPressed || isMarkingMode) {
+                // Ctrl+click OR Marking Mode: toggle selection
+                if (newSelection.has(itemId)) {
+                    newSelection.delete(itemId);
+                } else {
+                    newSelection.add(itemId);
+                }
+            } else {
+                // Normal click: select only this item
+                newSelection.clear();
+                newSelection.add(itemId);
+            }
+            return newSelection;
+        });
+        setLastSelectedId(itemId);
+    };
+
 
     useEffect(() => {
         if (renamingItem?.id && renameInputRef.current) {
@@ -258,19 +303,53 @@ export default function AllFoldersPage() {
 
         switch (action) {
             case 'mark':
-                // Not used in this view
+                setIsMarkingMode(prev => !prev);
+                if (!isMarkingMode) {
+                    // If entering marking mode, select the current item
+                    setSelectedItems(new Set([target.id]));
+                }
                 break;
             case 'copy':
-                copyToClipboard([{ type: type as any, item: target }]);
+                {
+                    let itemsToCopy: { type: 'file' | 'folder', item: any }[] = [];
+                    if (selectedItems.has(target.id)) {
+                        const allVisibleFolders = filteredFolders;
+                        selectedItems.forEach(id => {
+                            const folder = allVisibleFolders.find((f: any) => f.id === id);
+                            if (folder) itemsToCopy.push({ type: 'folder', item: folder });
+                        });
+                    } else {
+                        itemsToCopy.push({ type: type as any, item: target });
+                    }
+                    if (itemsToCopy.length > 0) copyToClipboard(itemsToCopy);
+                }
                 break;
             case 'cut':
-                cutToClipboard([{ type: type as any, item: target }]);
+                {
+                    let itemsToCut: { type: 'file' | 'folder', item: any }[] = [];
+                    if (selectedItems.has(target.id)) {
+                        const allVisibleFolders = filteredFolders;
+                        selectedItems.forEach(id => {
+                            const folder = allVisibleFolders.find((f: any) => f.id === id);
+                            if (folder) itemsToCut.push({ type: 'folder', item: folder });
+                        });
+                    } else {
+                        itemsToCut.push({ type: type as any, item: target });
+                    }
+                    if (itemsToCut.length > 0) cutToClipboard(itemsToCut);
+                }
                 break;
             case 'rename':
                 setRenamingItem({ id: target.id, name: target.name, type: type as any });
                 break;
             case 'delete':
-                if (type === 'folder') deleteFolderMutation.mutate(target.id);
+                if (selectedItems.has(target.id)) {
+                    // Bulk delete
+                    selectedItems.forEach(id => deleteFolderMutation.mutate(id));
+                    setSelectedItems(new Set());
+                } else {
+                    if (type === 'folder') deleteFolderMutation.mutate(target.id);
+                }
                 break;
             case 'properties':
                 setPropertiesModal({ isOpen: true, item: target, type: type as any });
@@ -330,6 +409,15 @@ export default function AllFoldersPage() {
     return (
         <div
             className="min-h-[calc(100vh-64px)] bg-[#F2F7FA] p-8 flex flex-col"
+            onClick={(e) => {
+                const target = e.target as HTMLElement;
+                const isOnItem = target.closest('[data-folder-item]');
+                if (!isOnItem) {
+                    setSelectedItems(new Set());
+                    setLastSelectedId(null);
+                    if (isMarkingMode) setIsMarkingMode(false);
+                }
+            }}
             onContextMenu={(e) => {
                 // Check if clicking on a file/folder item by traversing up from target
                 const target = e.target as HTMLElement;
@@ -407,14 +495,34 @@ export default function AllFoldersPage() {
                     )}
 
                     {filteredFolders.map((folder: any) => {
+                        const isSelected = selectedItems.has(folder.id);
                         return (
                             <div
                                 key={folder.id}
                                 data-folder-item
-                                onClick={() => !folder.isOptimistic && router.push(`/file-manager/folder/${folder.id}`)}
+                                onClick={(e) => !folder.isOptimistic && handleItemSelect(e, folder.id, filteredFolders)}
+                                onDoubleClick={() => !folder.isOptimistic && router.push(`/file-manager/folder/${folder.id}`)}
                                 onContextMenu={(e) => handleContextMenu(e, 'folder', folder)}
-                                className={`bg-white rounded-[12px] p-5 relative transition-all min-h-[120px] ${folder.isOptimistic ? 'opacity-50 cursor-default' : 'cursor-pointer hover:shadow-lg'}`}
+                                className={`bg-white rounded-[12px] p-5 relative transition-all min-h-[120px] ${folder.isOptimistic ? 'opacity-50 cursor-default' : 'cursor-pointer hover:shadow-lg'} ${isSelected ? 'ring-2 ring-[#00AAFF] bg-[#F0F9FF]' : ''}`}
                             >
+                                {/* Checkbox for marking mode */}
+                                {(isMarkingMode || isSelected) && (
+                                    <div
+                                        className="absolute top-3 left-3 z-10"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleItemSelect(e, folder.id, filteredFolders);
+                                        }}
+                                    >
+                                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-[#00AAFF] border-[#00AAFF]' : 'bg-white border-gray-300 hover:border-[#00AAFF]'}`}>
+                                            {isSelected && (
+                                                <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="flex flex-col h-full gap-3 min-w-0">
                                     <Image
                                         src="/svg/folder_icon.svg"
