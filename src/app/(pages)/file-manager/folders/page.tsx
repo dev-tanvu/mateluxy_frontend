@@ -12,6 +12,8 @@ import { FolderCardSkeleton } from '@/components/file-manager/skeletons';
 import { ContextMenu } from '@/components/file-manager/context-menu';
 import { useClipboard } from '@/context/clipboard-context';
 import { FolderProgress } from '@/components/file-manager/folder-progress';
+import { PropertiesModal } from '@/components/file-manager/properties-modal';
+import { getFolderStyle } from '@/lib/utils/folder-colors';
 
 function getPercentage(value: number, total: number) {
     if (total === 0) return 0;
@@ -48,6 +50,10 @@ export default function AllFoldersPage() {
     // Rename state
     const [renamingItem, setRenamingItem] = useState<{ id: string, name: string, type: 'file' | 'folder' } | null>(null);
     const renameInputRef = useRef<HTMLInputElement>(null);
+
+    // Properties Modal State
+    const [propertiesModal, setPropertiesModal] = useState<{ isOpen: boolean, item: any, type: 'file' | 'folder' }>({ isOpen: false, item: null, type: 'folder' });
+
 
     useEffect(() => {
         if (renamingItem?.id && renameInputRef.current) {
@@ -219,13 +225,32 @@ export default function AllFoldersPage() {
         },
     });
 
+    const updateColorMutation = useMutation({
+        mutationFn: ({ id, color }: { id: string, color: string }) => fileManagerService.updateFolderColor(id, color),
+        onMutate: async ({ id, color }) => {
+            await queryClient.cancelQueries({ queryKey: ['files', 'root'] });
+            const previousData = queryClient.getQueryData(['files', 'root']);
+            queryClient.setQueryData(['files', 'root'], (old: any) => ({
+                ...old,
+                folders: old?.folders?.map((f: any) => f.id === id ? { ...f, color } : f) || []
+            }));
+            return { previousData };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['files', 'root'], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', 'root'] });
+        },
+    });
+
     const handleContextMenu = (e: React.MouseEvent, type: 'file' | 'folder' | 'empty', target: any) => {
         e.preventDefault();
         e.stopPropagation();
         setContextMenu({ x: e.clientX, y: e.clientY, type, target });
     };
 
-    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste') => {
+    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste' | 'properties' | 'color', color?: string) => {
         if (!contextMenu) return;
 
         const { type, target } = contextMenu;
@@ -243,6 +268,14 @@ export default function AllFoldersPage() {
                 break;
             case 'delete':
                 if (type === 'folder') deleteFolderMutation.mutate(target.id);
+                break;
+            case 'properties':
+                setPropertiesModal({ isOpen: true, item: target, type: type as any });
+                break;
+            case 'color':
+                if (type === 'folder' && color) {
+                    updateColorMutation.mutate({ id: target.id, color });
+                }
                 break;
             case 'paste':
                 if (clipboard) {
@@ -363,8 +396,6 @@ export default function AllFoldersPage() {
                     )}
 
                     {filteredFolders.map((folder: any) => {
-                        const hue = (folder.id.split('').reduce((acc: any, char: any) => acc + char.charCodeAt(0), 0) * 137) % 360;
-
                         return (
                             <div
                                 key={folder.id}
@@ -379,9 +410,9 @@ export default function AllFoldersPage() {
                                         width={44}
                                         height={44}
                                         alt="Folder"
-                                        style={{ filter: `hue-rotate(${hue}deg)` }}
+                                        style={folder.color ? getFolderStyle(folder.color) : {}}
                                     />
-                                    <div className="w-full pr-10">
+                                    <div className="w-full">
                                         {renamingItem?.id === folder.id ? (
                                             <input
                                                 ref={renameInputRef}
@@ -400,7 +431,7 @@ export default function AllFoldersPage() {
                                             <>
                                                 <h3 className="font-bold text-[15px] truncate text-[#1A1A1A] w-full" title={folder.name}>{folder.name}</h3>
                                                 {!folder.isOptimistic && (
-                                                    <p className="text-[#8F9BB3] text-[12px] mt-1">
+                                                    <p className="text-[#8F9BB3] text-[12px] mt-1 whitespace-nowrap truncate">
                                                         {formatSize(folder.size)} ({folder._count?.files || 0} Files, {folder._count?.children || 0} Folders)
                                                     </p>
                                                 )}
@@ -408,7 +439,7 @@ export default function AllFoldersPage() {
                                         )}
 
                                     </div>
-                                    <div className="absolute bottom-5 right-5">
+                                    <div className="absolute top-5 right-5">
                                         <FolderProgress percentage={getPercentage(folder.size, totalUsed)} />
                                     </div>
                                 </div>
@@ -431,6 +462,13 @@ export default function AllFoldersPage() {
                 onUpload={(files) => {
                     files.forEach(file => uploadFileMutation.mutate(file));
                 }}
+            />
+
+            <PropertiesModal
+                isOpen={propertiesModal.isOpen}
+                onClose={() => setPropertiesModal({ ...propertiesModal, isOpen: false })}
+                item={propertiesModal.item}
+                type={propertiesModal.type}
             />
 
             {contextMenu && (

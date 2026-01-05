@@ -101,6 +101,11 @@ export const fileManagerService = {
         return response.data;
     },
 
+    updateFolderColor: async (id: string, color: string) => {
+        const response = await api.post(`/file-manager/folder/${id}/color`, { color });
+        return response.data;
+    },
+
     permanentlyDeleteFile: async (id: string) => {
         const response = await api.delete(`/file-manager/file/${id}/permanent`);
         return response.data;

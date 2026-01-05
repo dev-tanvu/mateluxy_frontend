@@ -13,6 +13,8 @@ import { FileUploadModal } from '@/components/file-manager/upload-file-modal';
 import { FolderCardSkeleton, FileCardSkeleton } from '@/components/file-manager/skeletons';
 import { ContextMenu } from '@/components/file-manager/context-menu';
 import { useClipboard } from '@/context/clipboard-context';
+import { PropertiesModal } from '@/components/file-manager/properties-modal';
+import { getFolderStyle } from '@/lib/utils/folder-colors';
 
 function formatSize(bytes: number) {
     if (bytes === 0) return '0 B';
@@ -74,6 +76,9 @@ export default function FolderPage() {
     const [renamingItem, setRenamingItem] = useState<{ id: string, name: string, type: 'file' | 'folder' } | null>(null);
     const renameInputRef = useRef<HTMLInputElement>(null);
 
+    // Properties Modal State
+    const [propertiesModal, setPropertiesModal] = useState<{ isOpen: boolean, item: any, type: 'file' | 'folder' }>({ isOpen: false, item: null, type: 'folder' });
+
     useEffect(() => {
         if (renamingItem?.id && renameInputRef.current) {
             const timer = setTimeout(() => {
@@ -83,6 +88,7 @@ export default function FolderPage() {
             return () => clearTimeout(timer);
         }
     }, [renamingItem?.id]);
+
 
     useEffect(() => {
         if (isCreatingFolder && folderInputRef.current) {
@@ -342,13 +348,32 @@ export default function FolderPage() {
         },
     });
 
+    const updateColorMutation = useMutation({
+        mutationFn: ({ id, color }: { id: string, color: string }) => fileManagerService.updateFolderColor(id, color),
+        onMutate: async ({ id, color }) => {
+            await queryClient.cancelQueries({ queryKey: ['files', folderId] });
+            const previousData = queryClient.getQueryData(['files', folderId]);
+            queryClient.setQueryData(['files', folderId], (old: any) => ({
+                ...old,
+                folders: old?.folders?.map((f: any) => f.id === id ? { ...f, color } : f) || []
+            }));
+            return { previousData };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['files', folderId], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', folderId] });
+        },
+    });
+
     const handleContextMenu = (e: React.MouseEvent, type: 'file' | 'folder' | 'empty', target: any) => {
         e.preventDefault();
         e.stopPropagation();
         setContextMenu({ x: e.clientX, y: e.clientY, type, target });
     };
 
-    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste') => {
+    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste' | 'properties' | 'color', color?: string) => {
         if (!contextMenu) return;
 
         const { type, target } = contextMenu;
@@ -367,6 +392,14 @@ export default function FolderPage() {
             case 'delete':
                 if (type === 'folder') deleteFolderMutation.mutate(target.id);
                 else deleteFileMutation.mutate(target.id);
+                break;
+            case 'properties':
+                setPropertiesModal({ isOpen: true, item: target, type: type as any });
+                break;
+            case 'color':
+                if (type === 'folder' && color) {
+                    updateColorMutation.mutate({ id: target.id, color });
+                }
                 break;
             case 'paste':
                 if (clipboard) {
@@ -557,49 +590,52 @@ export default function FolderPage() {
                                 </div>
                             )}
 
-                            {filteredFolders.map((folder: any) => (
-                                <div
-                                    key={folder.id}
-                                    data-folder-item
-                                    onClick={() => !folder.isOptimistic && router.push(`/file-manager/folder/${folder.id}`)}
-                                    onContextMenu={(e) => handleContextMenu(e, 'folder', folder)}
-                                    className={`rounded-[16px] transition-all group ${folder.isOptimistic ? 'opacity-50 cursor-default' : 'cursor-pointer hover:bg-gray-50'}`}
-                                >
-                                    <div className="flex items-center justify-center pt-8 pb-4 relative">
-                                        <Image
-                                            src="/svg/folder_icon.svg"
-                                            width={146}
-                                            height={146}
-                                            alt="Folder"
-                                            className="w-full h-auto max-w-[146px]"
-                                        />
-                                    </div>
-                                    <div className="text-center pb-6 px-4">
-                                        {renamingItem?.id === folder.id ? (
-                                            <input
-                                                ref={renameInputRef}
-                                                type="text"
-                                                value={renamingItem?.name || ''}
-                                                onChange={(e) => setRenamingItem(prev => prev ? { ...prev, name: e.target.value } : null)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') handleRenameSubmit();
-                                                    if (e.key === 'Escape') setRenamingItem(null);
-                                                }}
-                                                onClick={(e) => e.stopPropagation()}
-                                                onContextMenu={(e) => e.stopPropagation()}
-                                                className="text-[14px] text-[#1A1A1A] font-medium w-full text-center bg-white border border-[#00AAFF] rounded px-1 outline-none"
+                            {filteredFolders.map((folder: any) => {
+                                return (
+                                    <div
+                                        key={folder.id}
+                                        data-folder-item
+                                        onClick={() => !folder.isOptimistic && router.push(`/file-manager/folder/${folder.id}`)}
+                                        onContextMenu={(e) => handleContextMenu(e, 'folder', folder)}
+                                        className={`rounded-[16px] transition-all group ${folder.isOptimistic ? 'opacity-50 cursor-default' : 'cursor-pointer hover:bg-gray-50'}`}
+                                    >
+                                        <div className="flex items-center justify-center pt-8 pb-4 relative">
+                                            <Image
+                                                src="/svg/folder_icon.svg"
+                                                width={146}
+                                                height={146}
+                                                alt="Folder"
+                                                className="w-full h-auto max-w-[146px]"
+                                                style={folder.color ? getFolderStyle(folder.color) : {}}
                                             />
-                                        ) : (
-                                            <>
-                                                <span className="text-[14px] text-[#1A1A1A] font-medium truncate block" title={folder.name}>
-                                                    {folder.name}
-                                                </span>
+                                        </div>
+                                        <div className="text-center pb-6 px-4">
+                                            {renamingItem?.id === folder.id ? (
+                                                <input
+                                                    ref={renameInputRef}
+                                                    type="text"
+                                                    value={renamingItem?.name || ''}
+                                                    onChange={(e) => setRenamingItem(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleRenameSubmit();
+                                                        if (e.key === 'Escape') setRenamingItem(null);
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    onContextMenu={(e) => e.stopPropagation()}
+                                                    className="text-[14px] text-[#1A1A1A] font-medium w-full text-center bg-white border border-[#00AAFF] rounded px-1 outline-none"
+                                                />
+                                            ) : (
+                                                <>
+                                                    <span className="text-[14px] text-[#1A1A1A] font-medium truncate block" title={folder.name}>
+                                                        {folder.name}
+                                                    </span>
 
-                                            </>
-                                        )}
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     </div>
                 )}
@@ -694,6 +730,13 @@ export default function FolderPage() {
                 onUpload={(files) => {
                     files.forEach(file => uploadFileMutation.mutate(file));
                 }}
+            />
+
+            <PropertiesModal
+                isOpen={propertiesModal.isOpen}
+                onClose={() => setPropertiesModal({ ...propertiesModal, isOpen: false })}
+                item={propertiesModal.item}
+                type={propertiesModal.type}
             />
 
             {contextMenu && (

@@ -172,10 +172,10 @@ export function AddPasswordSheet({ isOpen, onClose, passwordToEdit }: AddPasswor
     };
 
     return (
-        <Sheet isOpen={isOpen} onClose={handleClose} title={passwordToEdit ? "Edit Password" : "Add New Password"}>
+        <Sheet isOpen={isOpen} onClose={handleClose} title={passwordToEdit ? "Edit Password" : "Add New Password"} titleClassName="font-sans font-semibold text-[24px]">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                 <div className="space-y-2">
-                    <Label className="text-sm font-semibold text-gray-700">Website Logo (Optional)</Label>
+                    <Label className="text-sm font-medium text-gray-700">Website Logo (Optional)</Label>
                     <DocumentUploadBox
                         label="Drop logo here"
                         icon={<Upload className="w-5 h-5" />}
@@ -187,41 +187,41 @@ export function AddPasswordSheet({ isOpen, onClose, passwordToEdit }: AddPasswor
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="title" className="text-sm font-semibold text-gray-700">Purpose / Title</Label>
+                    <Label htmlFor="title" className="text-sm font-medium text-gray-700">Purpose / Title</Label>
                     <Input
                         id="title"
                         placeholder="e.g. Property Finder API"
-                        className="h-11 rounded-xl"
+                        className="h-[50px] bg-white border-gray-200"
                         {...register('title')}
                     />
                     {errors.title && <p className="text-xs text-red-500">{errors.title.message}</p>}
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="username" className="text-sm font-semibold text-gray-700">Email / Username</Label>
+                    <Label htmlFor="username" className="text-sm font-medium text-gray-700">Email / Username</Label>
                     <Input
                         id="username"
                         placeholder="Enter email or username"
-                        className="h-11 rounded-xl"
+                        className="h-[50px] bg-white border-gray-200"
                         {...register('username')}
                     />
                     {errors.username && <p className="text-xs text-red-500">{errors.username.message}</p>}
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="password" className="text-sm font-semibold text-gray-700">Password</Label>
+                    <Label htmlFor="password" className="text-sm font-medium text-gray-700">Password</Label>
                     <Input
                         id="password"
                         type="password"
                         placeholder={passwordToEdit ? "Leave empty to keep current password" : "Enter secure password"}
-                        className="h-11 rounded-xl"
+                        className="h-[50px] bg-white border-gray-200"
                         {...register('password')}
                     />
                     {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
                 </div>
 
                 <div className="space-y-3">
-                    <Label className="text-sm font-semibold text-gray-700">Grant Access</Label>
+                    <Label className="text-sm font-medium text-gray-700">Grant Access</Label>
                     <p className="text-xs text-gray-400 mb-2">Select admins or moderators who can view this decrypted password.</p>
                     <div className="border border-gray-100 rounded-[20px] divide-y divide-gray-50 max-h-[220px] overflow-y-auto bg-gray-50/30">
                         {adminModerators.length === 0 ? (
@@ -257,24 +257,26 @@ export function AddPasswordSheet({ isOpen, onClose, passwordToEdit }: AddPasswor
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="note" className="text-sm font-semibold text-gray-700">Additional Note</Label>
+                    <Label htmlFor="note" className="text-sm font-medium text-gray-700">Additional Note</Label>
                     <Textarea
                         id="note"
                         placeholder="Add any extra details or instructions..."
-                        className="rounded-xl resize-none"
+                        className="rounded-xl resize-none bg-white border-gray-200"
                         {...register('note')}
                         rows={3}
                     />
                 </div>
 
-                <Button
-                    type="submit"
-                    className="w-full bg-[#00B7FF] hover:bg-[#0099DD] h-14 text-lg font-bold rounded-2xl shadow-lg shadow-blue-100 mt-4 transition-all active:scale-[0.98]"
-                    disabled={mutation.isPending || isUploading}
-                >
-                    {mutation.isPending || isUploading ? <Loader2 className="h-6 w-6 animate-spin mr-2" /> : <Save className="h-5 w-5 mr-2" />}
-                    {passwordToEdit ? 'Update Entry' : 'Create Entry'}
-                </Button>
+                <div className="pt-4 flex justify-center">
+                    <Button
+                        type="submit"
+                        className="bg-[#E0F2FE] text-[#0BA5EC] hover:bg-[#BAE6FD] h-12 px-8 text-base font-medium rounded-lg w-auto min-w-[200px]"
+                        disabled={mutation.isPending || isUploading}
+                    >
+                        {mutation.isPending || isUploading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Save className="h-5 w-5 mr-2" />}
+                        {passwordToEdit ? 'Update Entry' : 'Create Entry'}
+                    </Button>
+                </div>
             </form>
         </Sheet>
     );

@@ -10,11 +10,12 @@ interface SheetProps {
     children: React.ReactNode;
     title?: string;
     className?: string;
+    titleClassName?: string;
     hideCloseButton?: boolean;
     side?: 'left' | 'right';
 }
 
-export function Sheet({ isOpen, onClose, children, title, className, side = 'right', hideCloseButton = false }: SheetProps) {
+export function Sheet({ isOpen, onClose, children, title, className, titleClassName, side = 'right', hideCloseButton = false }: SheetProps) {
     // Prevent body scroll when open
     React.useEffect(() => {
         if (isOpen) {
@@ -52,7 +53,7 @@ export function Sheet({ isOpen, onClose, children, title, className, side = 'rig
                     {/* Header */}
                     {(title || !hideCloseButton) && (
                         <div className="flex items-center justify-between px-6 py-4">
-                            {title && <h2 className="text-lg font-semibold text-gray-900">{title}</h2>}
+                            {title && <h2 className={cn("text-lg font-semibold text-gray-900", titleClassName)}>{title}</h2>}
                             {!hideCloseButton && (
                                 <button
                                     onClick={onClose}

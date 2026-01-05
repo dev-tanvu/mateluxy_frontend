@@ -21,6 +21,8 @@ import { AddNewDropdown } from '@/components/file-manager/add-new-dropdown';
 import { FileUploadModal } from '@/components/file-manager/upload-file-modal';
 import { useClipboard } from '@/context/clipboard-context';
 import { ContextMenu } from '@/components/file-manager/context-menu';
+import { PropertiesModal } from '@/components/file-manager/properties-modal';
+import { getFolderStyle } from '@/lib/utils/folder-colors';
 
 // Helper Functions
 function formatSize(bytes: number) {
@@ -60,6 +62,9 @@ export default function FileManagerPage() {
     // Rename state
     const [renamingItem, setRenamingItem] = useState<{ id: string, name: string, type: 'file' | 'folder' } | null>(null);
     const renameInputRef = useRef<HTMLInputElement>(null);
+
+    // Properties Modal State
+    const [propertiesModal, setPropertiesModal] = useState<{ isOpen: boolean, item: any, type: 'file' | 'folder' }>({ isOpen: false, item: null, type: 'folder' });
 
     useEffect(() => {
         if (renamingItem?.id && renameInputRef.current) {
@@ -399,13 +404,32 @@ export default function FileManagerPage() {
         },
     });
 
+    const updateColorMutation = useMutation({
+        mutationFn: ({ id, color }: { id: string, color: string }) => fileManagerService.updateFolderColor(id, color),
+        onMutate: async ({ id, color }) => {
+            await queryClient.cancelQueries({ queryKey: ['files', 'root'] });
+            const previousData = queryClient.getQueryData(['files', 'root']);
+            queryClient.setQueryData(['files', 'root'], (old: any) => ({
+                ...old,
+                folders: old?.folders?.map((f: any) => f.id === id ? { ...f, color } : f) || []
+            }));
+            return { previousData };
+        },
+        onError: (err, variables, context) => {
+            queryClient.setQueryData(['files', 'root'], context?.previousData);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['files', 'root'] });
+        },
+    });
+
     const handleContextMenu = (e: React.MouseEvent, type: 'file' | 'folder' | 'empty', target: any) => {
         e.preventDefault();
         e.stopPropagation();
         setContextMenu({ x: e.clientX, y: e.clientY, type, target });
     };
 
-    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste') => {
+    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste' | 'properties' | 'color', color?: string) => {
         if (!contextMenu) return;
 
         const { type, target } = contextMenu;
@@ -424,6 +448,14 @@ export default function FileManagerPage() {
             case 'delete':
                 if (type === 'folder') deleteFolderMutation.mutate(target.id);
                 else deleteFileMutation.mutate(target.id);
+                break;
+            case 'properties':
+                setPropertiesModal({ isOpen: true, item: target, type: type as any });
+                break;
+            case 'color':
+                if (type === 'folder' && color) {
+                    updateColorMutation.mutate({ id: target.id, color });
+                }
                 break;
             case 'paste':
                 if (clipboard) {
@@ -508,17 +540,25 @@ export default function FileManagerPage() {
     const folders = contentsData?.folders || [];
     const allFiles = contentsData?.files || []; // Files in root
     const recentFiles = recentData || [];
+
+    // Helper to extract size from backend categories array
+    const getCategorySize = (catName: string) => {
+        if (!statsData?.categories || !Array.isArray(statsData.categories)) return 0;
+        const category = statsData.categories.find((c: any) => c.name === catName);
+        return category ? category.size : 0;
+    };
+
     const stats = {
-        totalUsed: statsData?.usedSize || 0,
-        totalLimit: statsData?.totalLimit || 150 * 1024 * 1024 * 1024, // 150 GB Default
+        totalUsed: statsData?.totalUsed || 0,
+        totalLimit: statsData?.totalCapacity || 150 * 1024 * 1024 * 1024, // 150 GB Default
         breakdown: {
-            images: statsData?.categories?.images || 0,
-            video: statsData?.categories?.videos || 0,
-            audio: statsData?.categories?.audio || 0,
-            archives: statsData?.categories?.archives || 0,
-            documents: statsData?.categories?.documents || 0,
-            fonts: statsData?.categories?.fonts || 0,
-            other: statsData?.categories?.others || 0
+            images: getCategorySize('Images'),
+            video: getCategorySize('Videos'),
+            audio: getCategorySize('Audio'),
+            archives: getCategorySize('Archives'),
+            documents: getCategorySize('Documents'),
+            fonts: getCategorySize('Fonts'),
+            other: getCategorySize('Others')
         }
     };
 
@@ -686,7 +726,6 @@ export default function FileManagerPage() {
                         [1, 2, 3].map((i) => <FolderCardSkeleton key={i} />)
                     ) : (
                         folders.slice(0, 3).map((folder: any) => {
-                            const hue = getFolderHue(folder.id);
                             return (
                                 <div
                                     key={folder.id}
@@ -695,13 +734,13 @@ export default function FileManagerPage() {
                                     onContextMenu={(e) => handleContextMenu(e, 'folder', folder)}
                                     className={`bg-white rounded-[12px] p-5 relative transition-all min-h-[120px] ${folder.isOptimistic ? 'opacity-50 cursor-default' : 'cursor-pointer hover:shadow-lg'}`}
                                 >
-                                    <div className="flex flex-col h-full gap-3 min-w-0 pr-12">
+                                    <div className="flex flex-col h-full gap-3 min-w-0">
                                         <Image
                                             src="/svg/folder_icon.svg"
                                             alt="folder"
                                             width={48}
                                             height={48}
-                                            style={{ filter: `hue-rotate(${hue}deg)` }}
+                                            style={folder.color ? getFolderStyle(folder.color) : {}}
                                         />
                                         {renamingItem?.id === folder.id ? (
                                             <input
@@ -723,14 +762,14 @@ export default function FileManagerPage() {
                                                     {folder.name}
                                                 </h3>
                                                 {!folder.isOptimistic && (
-                                                    <p className="text-[#8F9BB3] text-[12px] mt-1">
+                                                    <p className="text-[#8F9BB3] text-[12px] mt-1 whitespace-nowrap truncate">
                                                         {formatSize(folder.size)} ({folder._count?.files || 0} Files, {folder._count?.children || 0} Folders)
                                                     </p>
                                                 )}
                                             </>
                                         )}
                                     </div>
-                                    <div className="absolute bottom-4 right-4">
+                                    <div className="absolute top-4 right-4">
                                         <FolderProgress percentage={getPercentage(folder.size, stats.totalUsed)} />
                                     </div>
                                 </div>
@@ -1025,6 +1064,13 @@ export default function FileManagerPage() {
                 onUpload={(files) => {
                     files.forEach(file => uploadFileMutation.mutate(file));
                 }}
+            />
+
+            <PropertiesModal
+                isOpen={propertiesModal.isOpen}
+                onClose={() => setPropertiesModal({ ...propertiesModal, isOpen: false })}
+                item={propertiesModal.item}
+                type={propertiesModal.type}
             />
 
             {contextMenu && (

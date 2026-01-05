@@ -12,6 +12,7 @@ import { FileUploadModal } from '@/components/file-manager/upload-file-modal';
 import { ContextMenu } from '@/components/file-manager/context-menu';
 import { useClipboard } from '@/context/clipboard-context';
 import { FileCardSkeleton } from '@/components/file-manager/skeletons';
+import { PropertiesModal } from '@/components/file-manager/properties-modal';
 
 // Helper Functions
 function formatSize(bytes: number) {
@@ -71,6 +72,9 @@ export default function CategoryPage() {
     // Rename state
     const [renamingItem, setRenamingItem] = useState<{ id: string, name: string, type: 'file' | 'folder' } | null>(null);
     const renameInputRef = useRef<HTMLInputElement>(null);
+
+    // Properties Modal State
+    const [propertiesModal, setPropertiesModal] = useState<{ isOpen: boolean, item: any, type: 'file' | 'folder' }>({ isOpen: false, item: null, type: 'folder' });
 
     useEffect(() => {
         if (renamingItem?.id && renameInputRef.current) {
@@ -183,7 +187,7 @@ export default function CategoryPage() {
         setContextMenu({ x: e.clientX, y: e.clientY, type, target });
     };
 
-    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste') => {
+    const handleContextAction = async (action: 'copy' | 'cut' | 'rename' | 'delete' | 'paste' | 'properties' | 'color', color?: string) => {
         if (!contextMenu) return;
         const { type, target } = contextMenu;
         setContextMenu(null);
@@ -200,6 +204,12 @@ export default function CategoryPage() {
                 break;
             case 'delete':
                 if (type === 'file') deleteFileMutation.mutate(target.id);
+                break;
+            case 'properties':
+                setPropertiesModal({ isOpen: true, item: target, type: type as any });
+                break;
+            case 'color':
+                // Files don't have color, but type requirement
                 break;
             case 'paste':
                 if (clipboard) {
@@ -337,6 +347,13 @@ export default function CategoryPage() {
                 onUpload={(files) => {
                     files.forEach(file => uploadFileMutation.mutate(file));
                 }}
+            />
+
+            <PropertiesModal
+                isOpen={propertiesModal.isOpen}
+                onClose={() => setPropertiesModal({ ...propertiesModal, isOpen: false })}
+                item={propertiesModal.item}
+                type={propertiesModal.type}
             />
 
             {contextMenu && (
