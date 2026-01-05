@@ -212,15 +212,26 @@ export default function CategoryPage() {
                 // Files don't have color, but type requirement
                 break;
             case 'paste':
-                if (clipboard) {
+                if (clipboard && clipboard.items.length > 0) {
                     const targetFolderId = type === 'folder' ? target.id : null;
+
+                    clipboard.items.forEach(({ type: itemType, item }) => {
+                        // Folders not in category view, so we arguably only care about files here?
+                        // But if we are pasting INTO a folder (if that's possible in this view), we might need to handle it.
+                        // However, the original code said "Folders not in category view".
+                        // Assuming we only support pasting files here or ignoring folders.
+
+                        if (itemType === 'file') {
+                            if (clipboard.action === 'cut') {
+                                moveFileMutation.mutate({ id: item.id, targetFolderId: targetFolderId });
+                            } else {
+                                copyFileMutation.mutate({ id: item.id, targetFolderId: targetFolderId });
+                            }
+                        }
+                    });
+
                     if (clipboard.action === 'cut') {
-                        if (clipboard.type === 'folder') Promise.resolve(); // Folders not in category view
-                        else moveFileMutation.mutate({ id: clipboard.item.id, targetFolderId: targetFolderId });
                         clearClipboard();
-                    } else {
-                        if (clipboard.type === 'folder') Promise.resolve();
-                        else copyFileMutation.mutate({ id: clipboard.item.id, targetFolderId: targetFolderId });
                     }
                 }
                 break;
