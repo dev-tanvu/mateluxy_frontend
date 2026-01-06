@@ -181,7 +181,7 @@ export function AdditionalTab({ register, control, errors, setValue, watch, cate
                             className={cn(
                                 "flex-1 h-[50px] rounded-full border text-[15px] font-medium transition-colors",
                                 availabilityType === 'immediately'
-                                    ? "bg-white border-[#EDF1F7] text-gray-700"
+                                    ? "bg-[#E8F8FF] border-[#00AAFF] text-[#00AAFF]"
                                     : "bg-white border-[#EDF1F7] text-gray-400"
                             )}
                         >

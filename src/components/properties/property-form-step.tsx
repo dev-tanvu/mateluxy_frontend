@@ -78,9 +78,9 @@ const TABS = [
     { id: 'locations', label: 'Locations' },
     { id: 'price', label: 'Price' },
     { id: 'dld', label: 'DLD' },
-    { id: 'general', label: 'General Details' },
-    { id: 'media', label: 'Media' },
     { id: 'additional', label: 'Additional' },
+    { id: 'media', label: 'Media' },
+    { id: 'general', label: 'General Details' },
     { id: 'agent', label: 'Agent' },
 ];
 
