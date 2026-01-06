@@ -502,6 +502,7 @@ export function PropertyFormStep({ nocFile: initialNocFile, category: initialCat
                             control={control}
                             errors={errors}
                             watch={watch}
+                            purpose={purpose}
                         />
                     )}
                     {activeTab === 'dld' && (
