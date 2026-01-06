@@ -97,29 +97,13 @@ const mapOptions: google.maps.MapOptions = {
     ]
 };
 
-export function PropertyMap({ address, latitude, longitude, onAddressChange, onMarkerDrag, className }: PropertyMapProps) {
-    // State for API key loaded from backend
-    const [apiKey, setApiKey] = useState<string | null>(null);
-    const [apiKeyLoading, setApiKeyLoading] = useState(true);
+interface PropertyMapContentProps extends PropertyMapProps {
+    apiKey: string;
+}
 
-    // Fetch API key from backend integration config
-    useEffect(() => {
-        const fetchApiKey = async () => {
-            try {
-                const key = await getGoogleMapsApiKey();
-                // Fall back to env variable if not in database
-                setApiKey(key || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '');
-            } catch {
-                setApiKey(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '');
-            } finally {
-                setApiKeyLoading(false);
-            }
-        };
-        fetchApiKey();
-    }, []);
-
+function PropertyMapContent({ address, latitude, longitude, onAddressChange, onMarkerDrag, className, apiKey }: PropertyMapContentProps) {
     const { isLoaded, loadError } = useJsApiLoader({
-        googleMapsApiKey: apiKey || '',
+        googleMapsApiKey: apiKey,
         libraries,
     });
 
@@ -129,6 +113,8 @@ export function PropertyMap({ address, latitude, longitude, onAddressChange, onM
 
     const [map, setMap] = useState<google.maps.Map | null>(null);
     const [mapType, setMapType] = useState<string>('roadmap');
+
+    // ... existing key logic removed ...
 
     const onLoad = useCallback((map: google.maps.Map) => {
         setMap(map);
@@ -197,15 +183,6 @@ export function PropertyMap({ address, latitude, longitude, onAddressChange, onM
         setMapType(prev => prev === 'roadmap' ? 'satellite' : 'roadmap');
     };
 
-    // Show loading while fetching API key
-    if (apiKeyLoading) {
-        return (
-            <div className={cn("bg-gray-100 rounded-2xl flex items-center justify-center border border-[#EDF1F7]", className)}>
-                <div className="text-gray-400">Loading map...</div>
-            </div>
-        );
-    }
-
     if (loadError) {
         return (
             <div className={cn("bg-gray-100 rounded-2xl flex items-center justify-center border border-[#EDF1F7]", className)}>
@@ -256,4 +233,39 @@ export function PropertyMap({ address, latitude, longitude, onAddressChange, onM
             </button>
         </div>
     );
+}
+
+export function PropertyMap(props: PropertyMapProps) {
+    // State for API key loaded from backend
+    const [apiKey, setApiKey] = useState<string | null>(null);
+    const [apiKeyLoading, setApiKeyLoading] = useState(true);
+
+    // Fetch API key from backend integration config
+    useEffect(() => {
+        const fetchApiKey = async () => {
+            try {
+                const key = await getGoogleMapsApiKey();
+                // Fall back to env variable if not in database
+                setApiKey(key || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '');
+            } catch {
+                setApiKey(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '');
+            } finally {
+                setApiKeyLoading(false);
+            }
+        };
+        fetchApiKey();
+    }, []);
+
+    // Show loading while fetching API key
+    if (apiKeyLoading) {
+        return (
+            <div className={cn("bg-gray-100 rounded-2xl flex items-center justify-center border border-[#EDF1F7]", props.className)}>
+                <div className="text-gray-400">Loading map...</div>
+            </div>
+        );
+    }
+
+    // Only render the map content if we have an API key (or empty string, though that might fail differently)
+    // to strictly avoid calling useJsApiLoader with different options.
+    return <PropertyMapContent {...props} apiKey={apiKey || ''} />;
 }
