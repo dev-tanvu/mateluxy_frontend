@@ -393,7 +393,7 @@ export default function CategoryPage() {
                                     })}
                                 >
                                     {/* Checkbox for marking mode */}
-                                    {(isMarkingMode || isSelected) && (
+                                    {isMarkingMode && (
                                         <div
                                             className="absolute top-3 left-3 z-10"
                                             onClick={(e) => {
