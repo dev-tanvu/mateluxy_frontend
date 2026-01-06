@@ -506,7 +506,7 @@ export default function AllFoldersPage() {
                                 className={`bg-white rounded-[12px] p-5 relative transition-all min-h-[120px] ${folder.isOptimistic ? 'opacity-50 cursor-default' : 'cursor-pointer hover:shadow-lg'} ${isSelected ? 'ring-2 ring-[#00AAFF] bg-[#F0F9FF]' : ''}`}
                             >
                                 {/* Checkbox for marking mode */}
-                                {(isMarkingMode || isSelected) && (
+                                {isMarkingMode && (
                                     <div
                                         className="absolute top-3 left-3 z-10"
                                         onClick={(e) => {

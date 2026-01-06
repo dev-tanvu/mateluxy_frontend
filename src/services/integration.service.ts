@@ -51,6 +51,12 @@ export const sendTestNotification = async (): Promise<void> => {
 };
 
 // Helper for System Settings
+export const getSystemSettings = async (): Promise<{ timeZone: string } | null> => {
+    const integrations = await getIntegrations();
+    const config = integrations.find(c => c.provider === 'system_settings');
+    return config?.credentials || null;
+};
+
 export const updateSystemSettings = async (timeZone: string) => {
     return updateIntegration('system_settings', { isEnabled: true, credentials: { timeZone } });
 };
