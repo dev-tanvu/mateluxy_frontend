@@ -21,7 +21,7 @@ const currencyOptions = ['AED', 'USD', 'EUR'];
 const sourceOptions = ['Facebook', 'Instagram', 'Whatsapp', 'Tiktok', 'Adsense', 'Walk in'];
 
 export function AdditionalDetailsStep({ data, onChange, onNext, onBack }: AdditionalDetailsStepProps) {
-    const { data: agents } = useAgents();
+    const { data: agents } = useAgents(undefined, true);
     const [agentSearch, setAgentSearch] = useState('');
     const filteredAgents = useMemo(() => {
         if (!agents) return [];

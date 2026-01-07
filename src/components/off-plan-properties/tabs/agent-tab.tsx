@@ -34,7 +34,7 @@ export function AgentTab({ register, setValue, watch }: AgentTabProps) {
     const { data: locationAgents = [] } = useAgentsByArea(selectedLocation);
 
     // Fetch all active agents for Project Experts
-    const { data: allAgents = [] } = useAgents();
+    const { data: allAgents = [] } = useAgents(undefined, true);
 
     // Watch for project experts array: string[]
     const projectExperts = watch('projectExperts') || [];

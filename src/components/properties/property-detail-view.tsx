@@ -98,7 +98,14 @@ export interface PropertyDetailData {
 
 // --- Sub-components ---
 
-const OverviewTab = ({ data, onEdit }: { data: PropertyDetailData, onEdit?: () => void }) => {
+const OverviewTab = ({ data, onEdit, onVerify, isVerifying, eligibility, eligibilityLoading }: {
+    data: PropertyDetailData,
+    onEdit?: () => void,
+    onVerify?: () => void,
+    isVerifying?: boolean,
+    eligibility?: { eligible: boolean; reason: string; autoSubmit: boolean },
+    eligibilityLoading?: boolean
+}) => {
     const isOffPlan = data.type === 'off-plan';
 
     const steps = isOffPlan ? [
@@ -238,6 +245,58 @@ const OverviewTab = ({ data, onEdit }: { data: PropertyDetailData, onEdit?: () =
                     );
                 })}
             </div>
+
+            {/* Verify Button - Show for published but unverified properties */}
+            {data.status === 'published' && onVerify && (
+                <div className="mt-6 flex items-center gap-4">
+                    <Button
+                        onClick={onVerify}
+                        disabled={isVerifying || eligibilityLoading || (eligibility && !eligibility.eligible)}
+                        className={cn(
+                            "flex-1 h-[50px] text-[15px] font-normal rounded-[10px] font-[var(--font-outfit)] border-none shadow-none flex items-center justify-center gap-2",
+                            eligibility?.eligible
+                                ? "bg-[#0BA5EC] hover:bg-[#0090dd] text-white"
+                                : "bg-gray-200 text-gray-500 cursor-not-allowed"
+                        )}
+                    >
+                        {isVerifying ? (
+                            <>
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                                Submitting...
+                            </>
+                        ) : eligibilityLoading ? (
+                            <>
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                                Checking Eligibility...
+                            </>
+                        ) : (
+                            <>
+                                <Check className="h-5 w-5" />
+                                Submit for Verification
+                            </>
+                        )}
+                    </Button>
+
+                    {/* Eligibility Status Indicator */}
+                    {!eligibilityLoading && eligibility && (
+                        <div className={cn(
+                            "flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium",
+                            eligibility.eligible
+                                ? "bg-[#E7F9EF] text-[#22C55E]"
+                                : "bg-[#FEF3F2] text-[#EF4444]"
+                        )}>
+                            {eligibility.eligible ? (
+                                <Check className="h-4 w-4" />
+                            ) : (
+                                <X className="h-4 w-4" />
+                            )}
+                            <span className="max-w-[200px] truncate" title={eligibility.reason}>
+                                {eligibility.eligible ? 'Eligible' : eligibility.reason}
+                            </span>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
@@ -337,10 +396,14 @@ interface PropertyDetailViewProps {
     onEdit?: () => void;
     onPublish: () => void;
     onUnpublish: () => void;
+    onVerify?: () => void;
     isPublishing: boolean;
+    isVerifying?: boolean;
+    eligibility?: { eligible: boolean; reason: string; autoSubmit: boolean };
+    eligibilityLoading?: boolean;
 }
 
-export function PropertyDetailView({ data, onEdit, onPublish, onUnpublish, isPublishing }: PropertyDetailViewProps) {
+export function PropertyDetailView({ data, onEdit, onPublish, onUnpublish, onVerify, isPublishing, isVerifying, eligibility, eligibilityLoading }: PropertyDetailViewProps) {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<'overview' | 'insights' | 'leads'>('overview');
 
@@ -601,11 +664,11 @@ export function PropertyDetailView({ data, onEdit, onPublish, onUnpublish, isPub
                 </div >
 
                 {/* Tab Content */}
-                < div className="flex-1 min-h-[700px]" >
-                    {activeTab === 'overview' && <OverviewTab data={data} onEdit={onEdit} />}
+                <div className="flex-1 min-h-[700px]">
+                    {activeTab === 'overview' && <OverviewTab data={data} onEdit={onEdit} onVerify={onVerify} isVerifying={isVerifying} eligibility={eligibility} eligibilityLoading={eligibilityLoading} />}
                     {activeTab === 'insights' && <InsightsTab data={data} />}
                     {activeTab === 'leads' && <LeadsTab data={data} />}
-                </div >
+                </div>
             </div >
         </div >
     );

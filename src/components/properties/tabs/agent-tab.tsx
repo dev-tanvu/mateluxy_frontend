@@ -24,7 +24,7 @@ export function AgentTab({ register, control, errors, setValue, watch }: AgentTa
     const [hasInitialized, setHasInitialized] = useState(false);
 
     // Fetch agents from database
-    const { data: agents = [], isLoading } = useAgents(searchQuery);
+    const { data: agents = [], isLoading } = useAgents(searchQuery, true);
 
     const assignedAgentId = watch('assignedAgentId');
 

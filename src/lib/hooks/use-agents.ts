@@ -3,10 +3,10 @@ import { agentService, CreateAgentDto } from '../services/agent.service';
 
 import { keepPreviousData } from '@tanstack/react-query';
 
-export const useAgents = (search?: string) => {
+export const useAgents = (search?: string, isActive?: boolean) => {
     return useQuery({
-        queryKey: ['agents', search],
-        queryFn: () => agentService.getAll(search),
+        queryKey: ['agents', search, isActive],
+        queryFn: () => agentService.getAll(search, isActive),
         placeholderData: keepPreviousData,
     });
 };

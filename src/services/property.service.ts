@@ -371,6 +371,26 @@ export const unpublishFromPropertyFinder = async (id: string): Promise<void> => 
     await api.post(`/properties/${id}/unpublish-from-pf`);
 };
 
+// Submit property for verification on Property Finder
+export const submitVerificationToPropertyFinder = async (id: string): Promise<{
+    success: boolean;
+    message: string;
+    submissionId?: string;
+}> => {
+    const response = await api.post(`/properties/${id}/submit-verification`);
+    return response.data;
+};
+
+// Check verification eligibility for a property
+export const checkVerificationEligibility = async (id: string): Promise<{
+    eligible: boolean;
+    reason: string;
+    autoSubmit: boolean;
+}> => {
+    const response = await api.get(`/properties/${id}/check-verification-eligibility`);
+    return response.data;
+};
+
 // Sync property details FROM Property Finder (Backfill)
 export const syncPropertyDetailsFromPf = async (id: string): Promise<Property> => {
     const response = await api.post(`/properties/${id}/sync-from-pf-listing`);
