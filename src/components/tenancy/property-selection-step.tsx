@@ -27,7 +27,8 @@ export function PropertySelectionStep({ onSelect }: PropertySelectionStepProps) 
     const [activeSearch, setActiveSearch] = useState('');
     const [selectedProperty, setSelectedProperty] = useState<Property | OffPlanProperty | null>(null);
     const [showSuggestions, setShowSuggestions] = useState(false);
-    const [filterPurpose, setFilterPurpose] = useState<'All' | 'Rent' | 'Sale'>('All');
+    // Tenancy contracts are only for Rent properties
+    const filterPurpose = 'Rent';
 
     const router = useRouter();
 
@@ -41,14 +42,9 @@ export function PropertySelectionStep({ onSelect }: PropertySelectionStepProps) 
         }),
     });
 
-    // Only fetch off-plan if we are NOT filtering for Rent (Off-plan is typically Sales)
-    const { data: offPlanProperties, isLoading: isLoadingOffPlan } = useQuery({
-        queryKey: ['off-plan-properties', activeSearch],
-        queryFn: () => offPlanPropertyService.getAll({
-            search: activeSearch || undefined,
-        }),
-        enabled: filterPurpose !== 'Rent'
-    });
+    // Off-plan properties are not used for tenancy contracts (they're for sale)
+    const offPlanProperties: OffPlanProperty[] = [];
+    const isLoadingOffPlan = false;
 
     // Suggestion logic
     const suggestions = React.useMemo(() => {
@@ -99,19 +95,9 @@ export function PropertySelectionStep({ onSelect }: PropertySelectionStepProps) 
                             Select Property
                         </h1>
 
-                        <div className="flex bg-gray-100 p-1 rounded-xl">
-                            {['All', 'Rent', 'Sale'].map((type) => (
-                                <button
-                                    key={type}
-                                    onClick={() => setFilterPurpose(type as any)}
-                                    className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${filterPurpose === type
-                                        ? 'bg-white text-gray-900 shadow-sm'
-                                        : 'text-gray-500 hover:text-gray-900'
-                                        }`}
-                                >
-                                    {type}
-                                </button>
-                            ))}
+                        {/* Only showing Rent properties for tenancy contracts */}
+                        <div className="bg-[#E8F8FF] px-4 py-1.5 rounded-xl">
+                            <span className="text-sm font-medium text-[#00AAFF]">Rent Properties Only</span>
                         </div>
                     </div>
 
