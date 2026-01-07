@@ -38,7 +38,7 @@ export function PropertySelectionStep({ onSelect }: PropertySelectionStepProps) 
             search: activeSearch || undefined,
             page: 1,
             limit: 40,
-            purpose: filterPurpose === 'All' ? undefined : filterPurpose
+            purpose: 'Rent'  // Only show Rent properties for tenancy contracts
         }),
     });
 
