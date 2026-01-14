@@ -44,6 +44,11 @@ export function NotificationSoundHandler() {
     }, [notifications]);
 
     const playSound = () => {
+        // If explicitly muted via flag, do not play.
+        if (user?.isNotificationMuted) return;
+        // If sound URL is explicitly empty string, sound is DISABLED.
+        if (user?.notificationSoundUrl === '') return;
+
         const soundUrl = user?.notificationSoundUrl || '/sounds/bell.mp3';
         const audio = new Audio(soundUrl);
 

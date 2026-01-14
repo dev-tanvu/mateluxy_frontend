@@ -33,13 +33,12 @@ export function NotificationSoundCard() {
 
     useEffect(() => {
         if (user) {
+            // Logic: Muted is stored as TRUE, so Enabled is FALSE if muted.
+            setIsSoundEnabled(!user.isNotificationMuted);
+
+            // Always set the URL if it exists, regardless of mute state
             if (user.notificationSoundUrl) {
                 setSelectedSoundUrl(user.notificationSoundUrl);
-                setIsSoundEnabled(true);
-            } else {
-                if (user.notificationSoundUrl === '' || user.notificationSoundUrl === null) {
-                    setIsSoundEnabled(false);
-                }
             }
         }
     }, [user]);
@@ -171,22 +170,29 @@ export function NotificationSoundCard() {
         }
     };
 
+    const handleToggle = (checked: boolean) => {
+        setIsSoundEnabled(checked);
+        const formData = new FormData();
+        formData.append('isNotificationMuted', String(!checked));
+        // We only send the mute status for the toggle action
+        mutation.mutate(formData);
+    };
+
     const handleSave = () => {
         const formData = new FormData();
 
-        if (!isSoundEnabled) {
-            formData.append('notificationSoundUrl', '');
+        // Mute status is inverse of Enabled switch
+        formData.append('isNotificationMuted', String(!isSoundEnabled));
+
+        if (customFile) {
+            formData.append('notificationSound', customFile);
+            formData.append('useCustomNotificationSound', 'true');
+        } else if (selectedSoundUrl) {
+            formData.append('notificationSoundUrl', selectedSoundUrl);
             formData.append('useCustomNotificationSound', 'false');
-        } else {
-            if (customFile) {
-                formData.append('notificationSound', customFile);
-                formData.append('useCustomNotificationSound', 'true');
-            } else {
-                formData.append('notificationSoundUrl', selectedSoundUrl);
-                formData.append('useCustomNotificationSound', 'false');
-            }
         }
 
+        // This ensures existing sound is preserved even if off
         mutation.mutate(formData);
     };
 
@@ -226,7 +232,8 @@ export function NotificationSoundCard() {
                     <Switch
                         id="sound-toggle"
                         checked={isSoundEnabled}
-                        onCheckedChange={setIsSoundEnabled}
+                        onCheckedChange={handleToggle}
+                        disabled={mutation.isPending}
                     />
                 </div>
             </div>

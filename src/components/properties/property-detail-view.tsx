@@ -570,43 +570,43 @@ export function PropertyDetailView({ data, onEdit, onPublish, onUnpublish, isPub
                 style={{ backgroundColor: 'rgba(247, 247, 247, 0.31)' }}
             >
                 {/* Tab Headers */}
-                < div className="flex p-[7px] bg-transparent rounded-[15px] border border-[#EDF1F7]" style={{ backgroundColor: 'rgba(247, 247, 247, 0.31)' }}>
+                <div className="flex p-[7px] bg-transparent rounded-[15px] border border-[#EDF1F7]" style={{ backgroundColor: 'rgba(247, 247, 247, 0.31)' }}>
                     <button
                         onClick={() => setActiveTab('overview')}
                         className={cn(
-                            "flex-1 py-4.5 text-[16px] font-semibold transition-all rounded-[10px] font-[var(--font-source-sans)]",
+                            "flex-1 py-4 text-[15px] font-semibold transition-all rounded-[10px] font-[var(--font-source-sans)]",
                             activeTab === 'overview' ? "bg-[#E9F8FF] text-[#00AAFF]" : "text-[#585858] hover:text-[#00AAFF]"
                         )}
                     >
-                        Property Overview
+                        Overview
                     </button>
                     <button
                         onClick={() => setActiveTab('insights')}
                         className={cn(
-                            "flex-1 py-4.5 text-[16px] font-semibold transition-all rounded-[10px] font-[var(--font-source-sans)]",
+                            "flex-1 py-4 text-[15px] font-semibold transition-all rounded-[10px] font-[var(--font-source-sans)]",
                             activeTab === 'insights' ? "bg-[#E9F8FF] text-[#00AAFF]" : "text-[#585858] hover:text-[#00AAFF]"
                         )}
                     >
-                        Property Insights
+                        Insights
                     </button>
                     <button
                         onClick={() => setActiveTab('leads')}
                         className={cn(
-                            "flex-1 py-4.5 text-[16px] font-semibold transition-all rounded-[10px] font-[var(--font-source-sans)]",
+                            "flex-1 py-4 text-[15px] font-semibold transition-all rounded-[10px] font-[var(--font-source-sans)]",
                             activeTab === 'leads' ? "bg-[#E9F8FF] text-[#00AAFF]" : "text-[#585858] hover:text-[#00AAFF]"
                         )}
                     >
-                        Property Leads
+                        Leads
                     </button>
-                </div >
+                </div>
 
                 {/* Tab Content */}
-                < div className="flex-1 min-h-[700px]" >
+                <div className="flex-1 min-h-[700px]">
                     {activeTab === 'overview' && <OverviewTab data={data} onEdit={onEdit} />}
                     {activeTab === 'insights' && <InsightsTab data={data} />}
                     {activeTab === 'leads' && <LeadsTab data={data} />}
-                </div >
-            </div >
-        </div >
+                </div>
+            </div>
+        </div>
     );
 }
