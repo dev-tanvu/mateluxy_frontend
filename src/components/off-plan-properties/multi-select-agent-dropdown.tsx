@@ -29,7 +29,7 @@ interface MultiSelectAgentDropdownProps {
 
 export function MultiSelectAgentDropdown({ selectedAgentIds, onChange, placeholder = "Select agents" }: MultiSelectAgentDropdownProps) {
     const [open, setOpen] = React.useState(false);
-    const { data: agents = [] } = useAgents();
+    const { data: agents = [] } = useAgents(undefined, true);
 
     const selectedAgents = agents.filter(agent => selectedAgentIds.includes(agent.id));
 

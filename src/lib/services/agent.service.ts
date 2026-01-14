@@ -55,8 +55,10 @@ export interface CreateAgentDto {
 }
 
 export const agentService = {
-    getAll: async (search?: string) => {
-        const params = search ? { search } : {};
+    getAll: async (search?: string, isActive?: boolean) => {
+        const params: any = {};
+        if (search) params.search = search;
+        if (isActive !== undefined) params.isActive = isActive;
         const response = await api.get<Agent[]>('/agents', { params });
         return response.data;
     },

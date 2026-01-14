@@ -75,6 +75,7 @@ export function PropertyCard({ property, onStatusChange, onToggleActive, onClick
     const [imgError, setImgError] = React.useState(false);
 
     const [useStandardImg, setUseStandardImg] = React.useState(false);
+    const [agentImgError, setAgentImgError] = React.useState(false);
 
     // Reset image source when property changes
     React.useEffect(() => {
@@ -310,6 +311,8 @@ export function PropertyCard({ property, onStatusChange, onToggleActive, onClick
                                 alt={property.assignedAgent?.name || 'Agent'}
                                 fill
                                 className="object-cover"
+                                onError={() => setAgentImgError(true)}
+                                unoptimized={agentImgError}
                             />
                         </div>
                         <div className="flex flex-col">

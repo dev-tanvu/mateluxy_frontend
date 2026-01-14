@@ -40,6 +40,8 @@ export function AgentCard({ agent, onEdit, onDelete }: AgentCardProps) {
         }
     };
 
+    const [imgError, setImgError] = React.useState(false);
+
     return (
         <div
             className="relative bg-white rounded-[30px] overflow-hidden border border-[#EDF1F7] w-[260px] cursor-pointer hover:shadow-md transition-all duration-300"
@@ -55,6 +57,8 @@ export function AgentCard({ agent, onEdit, onDelete }: AgentCardProps) {
                             fill
                             className="object-cover"
                             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                            onError={() => setImgError(true)}
+                            unoptimized={imgError}
                         />
                     </div>
                 ) : (

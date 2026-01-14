@@ -3,7 +3,7 @@
 import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getProperty, getPropertyFinderListing, getPropertyFinderStats, syncPropertyToPropertyFinder, publishToPropertyFinder, unpublishFromPropertyFinder } from '@/services/property.service';
+import { getProperty, getPropertyFinderListing, getPropertyFinderStats, syncPropertyToPropertyFinder, publishToPropertyFinder, unpublishFromPropertyFinder, submitVerificationToPropertyFinder, checkVerificationEligibility } from '@/services/property.service';
 import { PropertyFinderLeadService } from '@/lib/services/property-finder-lead.service';
 import { PropertyDetailView, PropertyDetailData } from '@/components/properties/property-detail-view';
 import { Loader2 } from 'lucide-react';
@@ -15,6 +15,7 @@ export default function StandardPropertyDetailPage() {
     const queryClient = useQueryClient();
     const propertyId = params.id as string;
     const [isPublishing, setIsPublishing] = React.useState(false);
+    const [isVerifying, setIsVerifying] = React.useState(false);
 
     const { data: property, isLoading: propertyLoading } = useQuery({
         queryKey: ['property', propertyId],
@@ -38,6 +39,13 @@ export default function StandardPropertyDetailPage() {
         queryKey: ['property-finder-leads', property?.reference || property?.id],
         queryFn: () => PropertyFinderLeadService.listLeads(property?.reference || property?.id),
         enabled: !!property,
+    });
+
+    // Check verification eligibility for published but unverified properties
+    const { data: eligibility, isLoading: eligibilityLoading } = useQuery({
+        queryKey: ['property', propertyId, 'verification-eligibility'],
+        queryFn: () => checkVerificationEligibility(propertyId),
+        enabled: !!property && property.pfPublished && property.pfVerificationStatus !== 'verified' && property.pfVerificationStatus !== 'approved',
     });
 
     if (propertyLoading) {
@@ -86,11 +94,17 @@ export default function StandardPropertyDetailPage() {
             whatsapp: property.assignedAgent?.whatsapp || property.assignedAgent?.phone || '971561047161',
         },
         status: (() => {
-            if (property.pfPublished) return 'published';
             if (!property.isActive) return 'draft';
-            const vStatus = (pfListing?.verificationStatus || property.pfVerificationStatus || 'pending').toLowerCase();
+
+            // Check verification status first
+            const vStatus = (pfListing?.verificationStatus || property.pfVerificationStatus || '').toLowerCase();
             if (vStatus === 'approved' || vStatus === 'verified') return 'approved';
             if (vStatus === 'rejected') return 'rejected';
+
+            // If published but not verified yet
+            if (property.pfPublished) return 'published';
+
+            // Default to pending
             return 'pending';
         })() as any,
         rejectionDetail: pfListing?.verificationStatus === 'rejected' ? {
@@ -204,13 +218,31 @@ export default function StandardPropertyDetailPage() {
         }
     };
 
+    const handleVerify = async () => {
+        setIsVerifying(true);
+        try {
+            await submitVerificationToPropertyFinder(propertyId);
+            toast.success('Property submitted for verification successfully');
+            queryClient.invalidateQueries({ queryKey: ['property', propertyId] });
+        } catch (error: any) {
+            console.error(error);
+            toast.error(error?.response?.data?.message || error?.message || 'Failed to submit verification');
+        } finally {
+            setIsVerifying(false);
+        }
+    };
+
     return (
         <PropertyDetailView
             data={transformedData}
             onEdit={() => router.push(`/properties/${propertyId}/edit`)}
             onPublish={handlePublish}
             onUnpublish={handleUnpublish}
+            onVerify={handleVerify}
             isPublishing={isPublishing}
+            isVerifying={isVerifying}
+            eligibility={eligibility}
+            eligibilityLoading={eligibilityLoading}
         />
     );
 }

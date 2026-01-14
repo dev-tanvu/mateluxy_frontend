@@ -245,8 +245,8 @@ export function PropertyMap(props: PropertyMapProps) {
         const fetchApiKey = async () => {
             try {
                 const key = await getGoogleMapsApiKey();
-                // Fall back to env variable if not in database
-                setApiKey(key || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '');
+                // Prioritize local env variable if available, otherwise use database key
+                setApiKey(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || key || '');
             } catch {
                 setApiKey(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '');
             } finally {

@@ -39,7 +39,7 @@ export function AddAgentPasswordSheet({ isOpen, onClose, entryToEdit }: AddAgent
     const inputRef = useRef<HTMLInputElement>(null);
 
     // Use the custom hook for consistency and caching
-    const { data: agents = [] } = useAgents();
+    const { data: agents = [] } = useAgents(undefined, true);
 
     const {
         register,
