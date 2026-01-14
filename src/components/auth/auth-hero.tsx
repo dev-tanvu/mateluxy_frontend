@@ -1,5 +1,5 @@
 import React from 'react';
-import Image from 'next/image';
+import { ImageWithFallback } from '@/components/ui/image-with-fallback';
 import { BarChart3 } from 'lucide-react';
 
 export function AuthHero() {
@@ -8,7 +8,7 @@ export function AuthHero() {
             {/* Mock Dashboard Preview */}
             {/* Mock Dashboard Preview */}
             <div className="relative mb-12 w-full max-w-lg bg-transparent">
-                <Image
+                <ImageWithFallback
                     src="https://crm-essential-images.s3.us-east-1.amazonaws.com/CRM+Preview.png"
                     alt="Dashboard Preview"
                     width={800}
