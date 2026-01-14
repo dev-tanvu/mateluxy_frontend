@@ -6,6 +6,7 @@ export interface NotificationSettings {
     notificationSoundStart: number;
     notificationSoundEnd: number | null;
     useCustomNotificationSound: boolean;
+    isNotificationMuted: boolean;
 }
 
 export const updateNotificationSettings = async (formData: FormData) => {
