@@ -30,6 +30,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useRouter } from 'next/navigation';
 
+const SafeImage = (props: React.ComponentProps<typeof Image>) => {
+    const [isError, setIsError] = useState(false);
+    return (
+        <Image
+            {...props}
+            onError={(e) => {
+                setIsError(true);
+                props.onError?.(e);
+            }}
+            unoptimized={isError || (props.unoptimized ?? false)}
+        />
+    );
+};
+
 // --- Shared Types ---
 
 interface StatItem {
@@ -417,7 +431,7 @@ export function PropertyDetailView({ data, onEdit, onPublish, onUnpublish, onVer
                 style={{ backgroundColor: 'rgba(247, 247, 247, 0.31)' }}
             >
                 <div className="relative aspect-[2/1] w-full rounded-[10px] overflow-hidden border border-[#EDF1F7] shadow-sm">
-                    <Image
+                    <SafeImage
                         src={data.coverPhoto}
                         alt={data.title}
                         fill
@@ -476,7 +490,7 @@ export function PropertyDetailView({ data, onEdit, onPublish, onUnpublish, onVer
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2.5">
                                     <div className="relative h-[36px] w-[140px] flex items-center justify-start">
-                                        <Image
+                                        <SafeImage
                                             src={data.developer.logoUrl}
                                             alt={data.developer.name}
                                             fill
@@ -524,7 +538,7 @@ export function PropertyDetailView({ data, onEdit, onPublish, onUnpublish, onVer
                                     }}
                                 >
                                     <div className="relative h-[50px] w-[50px] rounded-full overflow-hidden flex-shrink-0">
-                                        <Image
+                                        <SafeImage
                                             src={data.agent.photo || "/profile.svg"}
                                             alt={data.agent.name || "Agent"}
                                             fill
