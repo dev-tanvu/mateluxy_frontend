@@ -75,6 +75,7 @@ export function AgentDetailsPanel({ agent, onAssign, isAssigned }: AgentDetailsP
             {/* Footer */}
             <div className="pt-6 mt-auto">
                 <button
+                    type="button"
                     onClick={() => onAssign(agent)}
                     className={`w-full py-2.5 rounded-xl font-medium text-sm transition-colors ${isAssigned
                         ? 'bg-red-50 text-red-500 hover:bg-red-100'

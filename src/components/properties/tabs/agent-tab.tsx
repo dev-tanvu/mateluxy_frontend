@@ -4,10 +4,11 @@ import React, { useState, useEffect } from 'react';
 import { UseFormRegister, Control, FieldErrors, UseFormSetValue, UseFormWatch } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Search, ChevronDown, Globe, Users, Phone, Mail, Check } from 'lucide-react';
+import { Search, ChevronDown, Check, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAgents } from '@/lib/hooks/use-agents';
 import { Agent } from '@/lib/services/agent.service';
+import { AgentDetailsPanel } from '@/components/off-plan-properties/agent-details-panel';
 
 interface AgentTabProps {
     register: UseFormRegister<any>;
@@ -43,15 +44,12 @@ export function AgentTab({ register, control, errors, setValue, watch }: AgentTa
         setSelectedAgent(agent);
     };
 
-    const handleAssignToProperty = () => {
-        if (selectedAgent) {
-            // If already assigned, unassign? Or just overwrite.
-            // Usually "Assign" means set this agent.
-            if (assignedAgentId === selectedAgent.id) {
-                setValue('assignedAgentId', '');
-            } else {
-                setValue('assignedAgentId', selectedAgent.id, { shouldValidate: true, shouldDirty: true });
-            }
+    const handleAssignToProperty = (agent: Agent) => {
+        // If already assigned, unassign. Otherwise assign.
+        if (assignedAgentId === agent.id) {
+            setValue('assignedAgentId', '');
+        } else {
+            setValue('assignedAgentId', agent.id, { shouldValidate: true, shouldDirty: true });
         }
     };
 
@@ -65,9 +63,9 @@ export function AgentTab({ register, control, errors, setValue, watch }: AgentTa
                 Agent <span className="text-red-500">*</span>
             </Label>
 
-            <div className="grid grid-cols-2 gap-8">
+            <div className="flex gap-8 items-start">
                 {/* Left Side: Agent List */}
-                <div className="space-y-4">
+                <div className="w-[650px] space-y-4 flex-shrink-0">
                     <div className="relative">
                         <Input
                             placeholder="Search for agent"
@@ -126,51 +124,16 @@ export function AgentTab({ register, control, errors, setValue, watch }: AgentTa
                     )}
                 </div>
 
-                {/* Right Side: Selected Agent Details */}
-                <div className="flex items-start justify-center">
-                    {selectedAgent ? (
-                        <div className="flex flex-col items-center text-center space-y-4 pt-4 w-full border border-gray-100 rounded-2xl p-6 bg-white shadow-sm">
-                            <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-200 ring-4 ring-[#FFE066]/50">
-                                {selectedAgent.photoUrl ? (
-                                    <img src={selectedAgent.photoUrl} alt={selectedAgent.name} className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-400 text-3xl font-medium">
-                                        {selectedAgent.name.charAt(0).toUpperCase()}
-                                    </div>
-                                )}
-                            </div>
-                            <h3 className="text-xl font-semibold text-gray-900">{selectedAgent.name}</h3>
-                            <div className="space-y-2 text-[14px] text-gray-600 w-full">
-                                {selectedAgent.nationality && (
-                                    <div className="flex items-center gap-2 justify-center"><Globe className="w-4 h-4 text-gray-400" /><span>{selectedAgent.nationality}</span></div>
-                                )}
-                                {selectedAgent.languages && (
-                                    <div className="flex items-center gap-2 justify-center"><Users className="w-4 h-4 text-gray-400" /><span>Speaks {selectedAgent.languages.join(', ')}</span></div>
-                                )}
-                                <div className="flex items-center gap-2 justify-center"><Phone className="w-4 h-4 text-gray-400" /><span>{selectedAgent.phone}</span></div>
-                                <div className="flex items-center gap-2 justify-center"><Mail className="w-4 h-4 text-gray-400" /><span>{selectedAgent.email}</span></div>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={handleAssignToProperty}
-                                className={cn(
-                                    "mt-4 px-8 py-3 rounded-full font-medium transition-colors w-full",
-                                    assignedAgentId === selectedAgent.id
-                                        ? "bg-green-50 text-green-600 border border-green-200 hover:bg-green-100"
-                                        : "bg-[#00B7FF] text-white hover:bg-[#00A0E3] shadow-md shadow-blue-200"
-                                )}
-                            >
-                                {assignedAgentId === selectedAgent.id ? 'Unassign Agent' : 'Assign to Property'}
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center h-full text-gray-400 pt-16">
-                            <Users className="w-16 h-16 mb-4 opacity-30" />
-                            <p className="text-sm">Select an agent to see details</p>
-                        </div>
-                    )}
+                {/* Right Side: Agent Details Panel - Same as Off-Plan Property */}
+                <div className="w-[320px] flex-shrink-0">
+                    <AgentDetailsPanel
+                        agent={selectedAgent}
+                        onAssign={handleAssignToProperty}
+                        isAssigned={selectedAgent ? assignedAgentId === selectedAgent.id : false}
+                    />
                 </div>
             </div>
+
             {/* Hidden Input for validation if needed */}
             <input type="hidden" {...register('assignedAgentId', { required: 'Agent is required' })} />
             {errors.assignedAgentId && <p className="text-sm text-red-500">{errors.assignedAgentId.message as string}</p>}

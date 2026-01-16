@@ -2,12 +2,73 @@
 
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getDrafts, deleteDraft, PropertyDraft } from '@/services/property.service';
-import { Loader2, Trash2, FileEdit } from 'lucide-react';
+import { getDrafts, deleteDraft, PropertyDraft, Property } from '@/services/property.service';
+import { Loader2, FileEdit, Trash2 } from 'lucide-react';
+import { PropertyCard } from '@/components/properties/property-card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+
+// Map PropertyDraft to Property-like object for use with PropertyCard
+function mapDraftToProperty(draft: PropertyDraft): Property {
+    const data = draft.data as any;
+    return {
+        id: draft.id, // Use draft ID for navigation
+        category: data.category || '',
+        purpose: data.purpose || '',
+        clientName: data.clientName || '',
+        nationality: data.nationality,
+        phoneNumber: data.phoneNumber || '',
+        emirate: data.emirate,
+        propertyType: data.propertyType,
+        plotArea: data.plotArea,
+        area: data.area,
+        bedrooms: data.bedrooms,
+        kitchens: data.kitchens,
+        bathrooms: data.bathrooms,
+        unitNumber: data.unitNumber,
+        ownershipStatus: data.ownershipStatus,
+        parkingSpaces: data.parkingSpaces,
+        address: data.address,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        furnishingType: data.furnishingType,
+        price: data.price,
+        rentalPeriod: data.rentalPeriod,
+        brokerFee: data.brokerFee,
+        numberOfCheques: data.numberOfCheques,
+        dldPermitNumber: data.dldPermitNumber,
+        dldQrCode: data.dldQrCode,
+        propertyTitle: data.propertyTitle || 'Untitled Draft',
+        propertyDescription: data.propertyDescription,
+        coverPhoto: data.coverPhoto,
+        videoUrl: data.videoUrl,
+        mediaImages: data.mediaImages || [],
+        reference: data.reference,
+        availableFrom: data.availableFrom,
+        amenities: data.amenities || [],
+        nocDocument: data.nocDocument,
+        passportCopy: data.passportCopy,
+        emiratesIdScan: data.emiratesIdScan,
+        titleDeed: data.titleDeed,
+        assignedAgentId: data.assignedAgentId,
+        assignedAgent: data.assignedAgent,
+        isActive: false, // Drafts are always inactive
+        status: 'AVAILABLE',
+        pfListingId: undefined,
+        pfPublished: false,
+        pfVerificationStatus: undefined,
+        pfQualityScore: undefined,
+        pfSyncedAt: undefined,
+        pfLocationId: data.pfLocationId,
+        pfLocationPath: data.pfLocationPath,
+        createdAt: draft.createdAt,
+        updatedAt: draft.updatedAt,
+        leadsCount: 0,
+        projectStatus: data.projectStatus,
+        completionDate: data.completionDate,
+    };
+}
 
 export default function SavedDraftsPage() {
     const queryClient = useQueryClient();
@@ -56,36 +117,26 @@ export default function SavedDraftsPage() {
                         </p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {drafts?.map((draft) => (
-                            <div key={draft.id} className="bg-white rounded-xl border border-[#EDF1F7] p-5 hover:shadow-md transition-shadow">
-                                <div className="flex flex-col h-full">
-                                    <div className="mb-4">
-                                        <h3 className="font-semibold text-lg line-clamp-1 mb-1" title={draft.data.propertyTitle || 'Untitled Draft'}>
-                                            {draft.data.propertyTitle || 'Untitled Draft'}
-                                        </h3>
-                                        <p className="text-sm text-gray-500">
-                                            {draft.data.reference ? `Ref: ${draft.data.reference}` : 'No Reference'}
-                                        </p>
-                                    </div>
-
-                                    <div className="mt-auto pt-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
-                                        <span>
-                                            Last saved: {format(new Date(draft.updatedAt), 'MMM d, yyyy HH:mm')}
-                                        </span>
-                                    </div>
-
-                                    <div className="flex gap-3 mt-4">
-                                        <Link href={`/properties/saved-drafts/${draft.id}`} className="flex-1">
-                                            <Button variant="outline" className="w-full border-[#E0F2FE] text-[#0BA5EC] hover:bg-[#E0F2FE]">
-                                                <FileEdit className="w-4 h-4 mr-2" />
-                                                Resume
-                                            </Button>
-                                        </Link>
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4">
+                        {drafts?.map((draft) => {
+                            const propertyData = mapDraftToProperty(draft);
+                            return (
+                                <div key={draft.id} className="relative group">
+                                    <PropertyCard
+                                        property={propertyData}
+                                        onClick={() => {
+                                            // Navigate to resume draft page
+                                            window.location.href = `/properties/saved-drafts/${draft.id}`;
+                                        }}
+                                    />
+                                    {/* Delete button overlay */}
+                                    <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                                         <Button
                                             variant="ghost"
-                                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                                            onClick={() => {
+                                            size="icon"
+                                            className="h-8 w-8 bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-700 rounded-full"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
                                                 if (confirm('Are you sure you want to delete this draft?')) {
                                                     deleteMutation.mutate(draft.id);
                                                 }
@@ -95,8 +146,8 @@ export default function SavedDraftsPage() {
                                         </Button>
                                     </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>
