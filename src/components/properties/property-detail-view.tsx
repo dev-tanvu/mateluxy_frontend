@@ -408,20 +408,22 @@ const LeadsTab = ({ data }: { data: PropertyDetailData }) => {
 interface PropertyDetailViewProps {
     data: PropertyDetailData;
     onEdit?: () => void;
+    onDelete?: () => void;
     onPublish: () => void;
     onUnpublish: () => void;
     onVerify?: () => void;
     isPublishing: boolean;
+    isDeleting?: boolean;
     isVerifying?: boolean;
     eligibility?: { eligible: boolean; reason: string; autoSubmit: boolean };
     eligibilityLoading?: boolean;
 }
 
-export function PropertyDetailView({ data, onEdit, onPublish, onUnpublish, onVerify, isPublishing, isVerifying, eligibility, eligibilityLoading }: PropertyDetailViewProps) {
+export function PropertyDetailView({ data, onEdit, onDelete, onPublish, onUnpublish, onVerify, isPublishing, isDeleting, isVerifying, eligibility, eligibilityLoading }: PropertyDetailViewProps) {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<'overview' | 'insights' | 'leads'>('overview');
 
-    const showUnpublish = data.status === 'published';
+    const showUnpublish = data.status === 'published' || data.status === 'approved';
 
     return (
         <div className="max-w-[1440px] mx-auto grid grid-cols-1 lg:grid-cols-[450px_1fr] gap-8 p-10 font-[var(--font-plus-jakarta-sans)] bg-[#FDFDFD]">
@@ -608,6 +610,7 @@ export function PropertyDetailView({ data, onEdit, onPublish, onUnpublish, onVer
                 < div className="grid grid-cols-2 gap-4 pt-2" >
                     {showUnpublish ? (
                         <Button
+                            type="button"
                             className="h-[56px] border-none shadow-none gap-2 transition-transform active:scale-[0.98] rounded-[10px]"
                             style={{ backgroundColor: 'rgba(255, 0, 0, 0.08)', color: '#FF0000' }}
                             onClick={onUnpublish}
@@ -620,6 +623,7 @@ export function PropertyDetailView({ data, onEdit, onPublish, onUnpublish, onVer
                         </Button>
                     ) : (
                         <Button
+                            type="button"
                             className="h-[56px] border-none shadow-none gap-2 transition-transform active:scale-[0.98] rounded-[10px]"
                             style={{ backgroundColor: 'rgba(0, 183, 255, 0.08)', color: '#00AAFF' }}
                             onClick={onPublish}
@@ -632,11 +636,18 @@ export function PropertyDetailView({ data, onEdit, onPublish, onUnpublish, onVer
                         </Button>
                     )}
                     <Button
+                        type="button"
                         className="h-[56px] border-none shadow-none gap-2 transition-transform active:scale-[0.98] rounded-[10px]"
                         style={{ backgroundColor: 'rgba(255, 0, 0, 0.08)', color: '#FF0000' }}
+                        onClick={() => {
+                            if (confirm('Are you sure you want to delete this property? This action cannot be undone.')) {
+                                onDelete?.();
+                            }
+                        }}
+                        disabled={isDeleting}
                     >
-                        <Trash2 className="h-6 w-6" style={{ color: '#FF0000' }} />
-                        <span className="text-[16px] font-normal font-[var(--font-outfit)]">Delete Property</span>
+                        {isDeleting ? <Loader2 className="h-6 w-6 animate-spin" style={{ color: '#FF0000' }} /> : <Trash2 className="h-6 w-6" style={{ color: '#FF0000' }} />}
+                        <span className="text-[16px] font-normal font-[var(--font-outfit)]">{isDeleting ? 'Deleting...' : 'Delete Property'}</span>
                     </Button>
                 </div >
             </div >
@@ -679,7 +690,16 @@ export function PropertyDetailView({ data, onEdit, onPublish, onUnpublish, onVer
 
                 {/* Tab Content */}
                 <div className="flex-1 min-h-[700px]">
-                    {activeTab === 'overview' && <OverviewTab data={data} onEdit={onEdit} />}
+                    {activeTab === 'overview' && (
+                        <OverviewTab
+                            data={data}
+                            onEdit={onEdit}
+                            onVerify={onVerify}
+                            isVerifying={isVerifying}
+                            eligibility={eligibility}
+                            eligibilityLoading={eligibilityLoading}
+                        />
+                    )}
                     {activeTab === 'insights' && <InsightsTab data={data} />}
                     {activeTab === 'leads' && <LeadsTab data={data} />}
                 </div>

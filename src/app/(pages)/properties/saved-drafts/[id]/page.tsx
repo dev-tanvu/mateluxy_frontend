@@ -33,7 +33,7 @@ export default function ResumeDraftPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 py-8">
+        <div className="min-h-screen bg-white py-8">
             <div className="max-w-[1200px] mx-auto px-4">
                 <div className="mb-6">
                     <h1 className="text-2xl font-bold mb-2">Resume Draft</h1>

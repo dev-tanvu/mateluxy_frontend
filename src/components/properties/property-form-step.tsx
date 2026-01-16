@@ -330,6 +330,7 @@ export function PropertyFormStep({ nocFile: initialNocFile, category: initialCat
                 // We save as draft. 
                 // Pass draftId if we are editing an existing draft to update it.
                 // If we are editing a live property (isEditing=true), we pass initialData.id as originalPropertyId.
+                propertyData.isActive = false; // Ensure draft is saved as inactive
                 const payload = draftId ? { ...propertyData, id: draftId } : propertyData;
                 await saveDraft(payload, isEditing ? initialData.id : undefined);
                 toast.success('Draft saved successfully!');
@@ -431,6 +432,51 @@ export function PropertyFormStep({ nocFile: initialNocFile, category: initialCat
             setActiveTab(TABS[currentIndex + 1].id);
         } else {
             handleSubmit(handleFormSubmit)();
+        }
+    };
+
+    // Save as Draft - bypasses form validation
+    const handleSaveAsDraft = async () => {
+        const data = getValues();
+        setSubmitMessage('Saving Draft...');
+        setIsSubmitting(true);
+        try {
+            cancelClickedRef.current = true;
+            hasUnsavedChangesRef.current = false;
+
+            // Prepare data for submission
+            const propertyData: CreatePropertyData = {
+                ...data,
+                category,
+                purpose,
+                nocDocument: nocFile || undefined,
+                passportCopy: passportFile || undefined,
+                emiratesIdScan: emiratesIdFile || undefined,
+                titleDeed: titleDeedFile || undefined,
+                isActive: false, // Draft is always inactive
+            };
+
+            // Handle coverPhoto
+            if (data.coverPhoto && (data.coverPhoto as FileList)[0] instanceof File) {
+                propertyData.coverPhoto = (data.coverPhoto as FileList)[0];
+            } else if (data.coverPhoto instanceof File) {
+                propertyData.coverPhoto = data.coverPhoto;
+            }
+
+            // Handle mediaImages
+            if (Array.isArray(data.mediaImages)) {
+                propertyData.mediaImages = data.mediaImages;
+            }
+
+            const payload = draftId ? { ...propertyData, id: draftId } : propertyData;
+            await saveDraft(payload, isEditing ? initialData.id : undefined);
+            toast.success('Draft saved successfully!');
+            router.push('/properties/saved-drafts');
+        } catch (error) {
+            console.error('Draft save error:', error);
+            toast.error('Failed to save draft.');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -567,10 +613,8 @@ export function PropertyFormStep({ nocFile: initialNocFile, category: initialCat
                         {activeTab === 'agent' && (
                             <>
                                 <Button
-                                    type="submit"
-                                    onClick={() => {
-                                        (window as any)._submitAction = 'draft';
-                                    }}
+                                    type="button"
+                                    onClick={handleSaveAsDraft}
                                     disabled={createPropertyMutation.isPending || updatePropertyMutation.isPending || isSubmitting}
                                     variant="outline"
                                     className="px-8 py-3 border border-[#E0F2FE] text-[#0BA5EC] hover:bg-[#E0F2FE] hover:text-[#0BA5EC] rounded-xl font-medium transition-colors h-auto disabled:opacity-50"

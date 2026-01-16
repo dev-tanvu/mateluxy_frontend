@@ -3,7 +3,7 @@
 import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getProperty, getPropertyFinderListing, getPropertyFinderStats, syncPropertyToPropertyFinder, publishToPropertyFinder, unpublishFromPropertyFinder, submitVerificationToPropertyFinder, checkVerificationEligibility } from '@/services/property.service';
+import { getProperty, getPropertyFinderListing, getPropertyFinderStats, syncPropertyToPropertyFinder, publishToPropertyFinder, unpublishFromPropertyFinder, submitVerificationToPropertyFinder, checkVerificationEligibility, deleteProperty } from '@/services/property.service';
 import { PropertyFinderLeadService } from '@/lib/services/property-finder-lead.service';
 import { PropertyDetailView, PropertyDetailData } from '@/components/properties/property-detail-view';
 import { Loader2 } from 'lucide-react';
@@ -15,6 +15,7 @@ export default function StandardPropertyDetailPage() {
     const queryClient = useQueryClient();
     const propertyId = params.id as string;
     const [isPublishing, setIsPublishing] = React.useState(false);
+    const [isDeleting, setIsDeleting] = React.useState(false);
     const [isVerifying, setIsVerifying] = React.useState(false);
 
     const { data: property, isLoading: propertyLoading } = useQuery({
@@ -232,14 +233,30 @@ export default function StandardPropertyDetailPage() {
         }
     };
 
+    const handleDelete = async () => {
+        setIsDeleting(true);
+        try {
+            await deleteProperty(propertyId);
+            toast.success('Property deleted successfully');
+            router.push('/properties');
+        } catch (error) {
+            console.error(error);
+            toast.error('Failed to delete property');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     return (
         <PropertyDetailView
             data={transformedData}
             onEdit={() => router.push(`/properties/${propertyId}/edit`)}
+            onDelete={handleDelete}
             onPublish={handlePublish}
             onUnpublish={handleUnpublish}
             onVerify={handleVerify}
             isPublishing={isPublishing}
+            isDeleting={isDeleting}
             isVerifying={isVerifying}
             eligibility={eligibility}
             eligibilityLoading={eligibilityLoading}
