@@ -391,7 +391,6 @@ export function PropertyCard({ property, onStatusChange, onToggleActive, onClick
                         </div>
                     </div>
                     <div className="flex items-center gap-1 text-[#9E9E9E]">
-                        <span className="text-[10px] font-normal">{property.reference || 'REF-001'}</span>
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -399,10 +398,11 @@ export function PropertyCard({ property, onStatusChange, onToggleActive, onClick
                                 navigator.clipboard.writeText(textToCopy);
                                 toast.success(`Reference ${textToCopy} copied to clipboard`);
                             }}
-                            className="p-1 hover:bg-gray-100 rounded-full transition-colors"
-                            title="Copy Reference"
+                            className="flex items-center gap-1 hover:text-[#1A1A1A] transition-colors cursor-pointer"
+                            title="Click to copy reference"
                         >
-                            <Copy className="h-2.5 w-2.5 cursor-pointer hover:text-[#1A1A1A]" />
+                            <span className="text-[10px] font-normal">{property.reference || 'REF-001'}</span>
+                            <Copy className="h-2.5 w-2.5" />
                         </button>
                     </div>
                 </div>

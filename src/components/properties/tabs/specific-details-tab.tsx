@@ -80,7 +80,7 @@ export function SpecificDetailsTab({ register, control, errors, watch, purpose }
             </div>
 
 
-            {/* Row 1.5: Project Status and Completion Date (Only for Sell) */}
+            {/* Row 1.5: Project Status (Only for Sell) */}
             {
                 (purpose?.toLowerCase() === 'sale' || purpose?.toLowerCase() === 'sell') && (
                     <div className="grid grid-cols-2 gap-8">
@@ -99,37 +99,15 @@ export function SpecificDetailsTab({ register, control, errors, watch, purpose }
                                     {...register('projectStatus', { required: "Project Status is required for Sell properties" })}
                                 >
                                     <option value="">Select status</option>
-                                    <option value="Resale - Ready to move">Resale - Ready to move</option>
-                                    <option value="Resale - Off-plan">Resale - Off-plan</option>
-                                    <option value="Primary - Ready to move">Primary - Ready to move</option>
-                                    <option value="Primary - Off-Plan">Primary - Off-Plan</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="off_plan">Off Plan</option>
+                                    <option value="completed_primary">Completed Primary</option>
+                                    <option value="off_plan_primary">Off Plan Primary</option>
                                 </select>
                                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                             </div>
                             {errors.projectStatus && <p className="text-sm text-red-500">{errors.projectStatus.message as string}</p>}
                         </div>
-
-                        {/* Completion Date - Required if Off-plan */}
-                        {(watch('projectStatus') === 'Resale - Off-plan' || watch('projectStatus') === 'Primary - Off-Plan') && (
-                            <div className="space-y-2.5">
-                                <Label htmlFor="completionDate" className="text-[15px] font-medium text-gray-700">
-                                    Completion Date (YYYY-MM) <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    id="completionDate"
-                                    type="month" // Browser native date picker for YYYY-MM
-                                    placeholder="YYYY-MM"
-                                    className={cn(
-                                        "h-[50px] bg-white border-[#EDF1F7] rounded-lg focus-visible:ring-blue-500 placeholder:text-[#8F9BB3] text-[15px]",
-                                        errors.completionDate && "border-red-500"
-                                    )}
-                                    {...register('completionDate', {
-                                        required: "Completion Date is required for Off-plan properties"
-                                    })}
-                                />
-                                {errors.completionDate && <p className="text-sm text-red-500">{errors.completionDate.message as string}</p>}
-                            </div>
-                        )}
                     </div>
                 )
             }

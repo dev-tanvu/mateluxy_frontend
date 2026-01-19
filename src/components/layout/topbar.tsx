@@ -101,20 +101,22 @@ export function Topbar() {
                                 <img src="/svg/watermark_icon.svg" alt="Watermark" className="h-6 w-6" />
                                 <span className="text-[10px] text-[#8E99A4]">Watermark</span>
                             </Link>
-                            <button
-                                onClick={() => handleUnderDevClick('Password Tool')}
+                            <Link
+                                href="/passwords"
+                                onClick={() => setIsRapidToolsOpen(false)}
                                 className="flex flex-col items-center gap-2 py-2 rounded-lg hover:bg-gray-50 transition-colors"
                             >
                                 <img src="/svg/password_icon.svg" alt="Password" className="h-6 w-6" />
                                 <span className="text-[10px] text-[#8E99A4]">Password</span>
-                            </button>
-                            <button
-                                onClick={() => handleUnderDevClick('Settings')}
+                            </Link>
+                            <Link
+                                href="/settings"
+                                onClick={() => setIsRapidToolsOpen(false)}
                                 className="flex flex-col items-center gap-2 py-2 rounded-lg hover:bg-gray-50 transition-colors"
                             >
                                 <img src="/svg/settings_icon.svg" alt="Settings" className="h-6 w-6" />
                                 <span className="text-[10px] text-[#8E99A4]">Settings</span>
-                            </button>
+                            </Link>
                             <button
                                 onClick={() => handleUnderDevClick('Form Builder')}
                                 className="flex flex-col items-center gap-2 py-2 rounded-lg hover:bg-gray-50 transition-colors"

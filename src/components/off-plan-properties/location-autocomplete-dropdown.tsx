@@ -1,12 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useJsApiLoader } from '@react-google-maps/api';
 import { Search, ChevronDown, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-
-const libraries: ("places")[] = ["places"];
+import { useGoogleMaps } from '@/providers/google-maps-provider';
 
 interface LocationAutocompleteDropdownProps {
     value: string;
@@ -28,10 +26,7 @@ export function LocationAutocompleteDropdown({
     const dropdownRef = useRef<HTMLDivElement>(null);
     const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
 
-    const { isLoaded } = useJsApiLoader({
-        googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-        libraries,
-    });
+    const { isLoaded } = useGoogleMaps();
 
     // Initialize autocomplete service when API is loaded
     useEffect(() => {

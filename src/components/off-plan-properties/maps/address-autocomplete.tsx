@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useRef, useEffect, useState } from 'react';
-import { Autocomplete, useJsApiLoader } from '@react-google-maps/api';
+import React, { useState, useEffect } from 'react';
+import { Autocomplete } from '@react-google-maps/api';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-
-const libraries: ("places")[] = ["places"];
+import { useGoogleMaps } from '@/providers/google-maps-provider';
 
 interface AddressAutocompleteProps {
     value: string;
@@ -14,10 +13,8 @@ interface AddressAutocompleteProps {
 }
 
 export function AddressAutocomplete({ value, onChange, error }: AddressAutocompleteProps) {
-    const { isLoaded } = useJsApiLoader({
-        googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-        libraries,
-    });
+    const { isLoaded } = useGoogleMaps();
+
 
     const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null);
     const [inputValue, setInputValue] = useState(value);

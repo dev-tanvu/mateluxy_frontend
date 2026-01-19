@@ -7,6 +7,7 @@ import { FileOpenerProvider, FileOpenerModals } from '@/components/file-opener';
 import { UploadProvider } from '@/components/upload-manager/upload-context';
 import { UploadStatusToast } from '@/components/upload-manager/upload-status-toast';
 import { ClipboardProvider } from '@/context/clipboard-context';
+import { GoogleMapsProvider } from '@/providers/google-maps-provider';
 
 export default function Providers({ children }: { children: React.ReactNode }) {
     const [queryClient] = useState(() => new QueryClient({
@@ -32,15 +33,17 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
     return (
         <QueryClientProvider client={queryClient}>
-            <UploadProvider>
-                <ClipboardProvider>
-                    <FileOpenerProvider>
-                        {children}
-                        <FileOpenerModals />
-                    </FileOpenerProvider>
-                </ClipboardProvider>
-                <UploadStatusToast />
-            </UploadProvider>
+            <GoogleMapsProvider>
+                <UploadProvider>
+                    <ClipboardProvider>
+                        <FileOpenerProvider>
+                            {children}
+                            <FileOpenerModals />
+                        </FileOpenerProvider>
+                    </ClipboardProvider>
+                    <UploadStatusToast />
+                </UploadProvider>
+            </GoogleMapsProvider>
             <Toaster position="bottom-right" richColors />
         </QueryClientProvider>
     );

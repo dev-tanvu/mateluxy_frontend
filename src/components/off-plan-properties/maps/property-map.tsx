@@ -1,12 +1,10 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
+import React, { useState, useCallback } from 'react';
+import { GoogleMap, Marker } from '@react-google-maps/api';
 import { Layers, Map as MapIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getGoogleMapsApiKey } from '@/services/integration.service';
-
-const libraries: ("places")[] = ["places"];
+import { useGoogleMaps } from '@/providers/google-maps-provider';
 
 interface PropertyMapProps {
     address?: string;
@@ -97,15 +95,9 @@ const mapOptions: google.maps.MapOptions = {
     ]
 };
 
-interface PropertyMapContentProps extends PropertyMapProps {
-    apiKey: string;
-}
+export function PropertyMap({ address, latitude, longitude, onAddressChange, onMarkerDrag, className }: PropertyMapProps) {
+    const { isLoaded, loadError } = useGoogleMaps();
 
-function PropertyMapContent({ address, latitude, longitude, onAddressChange, onMarkerDrag, className, apiKey }: PropertyMapContentProps) {
-    const { isLoaded, loadError } = useJsApiLoader({
-        googleMapsApiKey: apiKey,
-        libraries,
-    });
 
     const [markerPosition, setMarkerPosition] = useState<google.maps.LatLngLiteral>(
         latitude && longitude ? { lat: latitude, lng: longitude } : defaultCenter
@@ -233,39 +225,4 @@ function PropertyMapContent({ address, latitude, longitude, onAddressChange, onM
             </button>
         </div>
     );
-}
-
-export function PropertyMap(props: PropertyMapProps) {
-    // State for API key loaded from backend
-    const [apiKey, setApiKey] = useState<string | null>(null);
-    const [apiKeyLoading, setApiKeyLoading] = useState(true);
-
-    // Fetch API key from backend integration config
-    useEffect(() => {
-        const fetchApiKey = async () => {
-            try {
-                const key = await getGoogleMapsApiKey();
-                // Prioritize local env variable if available, otherwise use database key
-                setApiKey(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || key || '');
-            } catch {
-                setApiKey(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '');
-            } finally {
-                setApiKeyLoading(false);
-            }
-        };
-        fetchApiKey();
-    }, []);
-
-    // Show loading while fetching API key
-    if (apiKeyLoading) {
-        return (
-            <div className={cn("bg-gray-100 rounded-2xl flex items-center justify-center border border-[#EDF1F7]", props.className)}>
-                <div className="text-gray-400">Loading map...</div>
-            </div>
-        );
-    }
-
-    // Only render the map content if we have an API key (or empty string, though that might fail differently)
-    // to strictly avoid calling useJsApiLoader with different options.
-    return <PropertyMapContent {...props} apiKey={apiKey || ''} />;
 }

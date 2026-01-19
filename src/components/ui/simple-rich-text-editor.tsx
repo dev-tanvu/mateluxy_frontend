@@ -114,7 +114,7 @@ export function SimpleRichTextEditor({ value, onChange, className, placeholder }
 
     return (
         <div className={cn(
-            "flex flex-col border border-[#EDF1F7] rounded-lg overflow-hidden bg-white transition-all",
+            "relative flex flex-col border border-[#EDF1F7] rounded-lg overflow-hidden bg-white transition-all",
             isFocused && "ring-1 ring-blue-500 border-blue-500",
             className
         )}>
