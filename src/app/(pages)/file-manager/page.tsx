@@ -117,15 +117,21 @@ export default function FileManagerPage() {
     };
 
     // Handle item open (double click)
-    const handleItemOpen = (itemId: string, itemType: 'file' | 'folder', item: any) => {
+    const handleItemOpen = (itemId: string, itemType: 'file' | 'folder', item: any, contextFiles?: any[]) => {
         if (itemType === 'folder') {
             router.push(`/file-manager/folder/${itemId}`);
         } else {
+            const filesToOpen = (contextFiles || filteredFiles).map((f: any) => ({
+                url: f.url,
+                name: f.name,
+                type: getFileType(f.url)
+            }));
+
             openFile({
                 url: item.url,
                 name: item.name,
                 type: getFileType(item.url)
-            });
+            }, filesToOpen);
         }
     };
 
@@ -1076,7 +1082,7 @@ export default function FileManagerPage() {
                                             onContextMenu={(e) => handleContextMenu(e, 'file', file)}
                                             className={`group transition-colors cursor-pointer ${file.isOptimistic ? 'opacity-50 pointer-events-none' : ''} ${isSelected ? 'bg-[#E0F2FE]' : 'hover:bg-[#F2F7FA]'}`}
                                             onClick={(e) => !file.isOptimistic && handleItemSelect(e, file.id, 'file', filteredFiles)}
-                                            onDoubleClick={() => !file.isOptimistic && handleItemOpen(file.id, 'file', file)}
+                                            onDoubleClick={() => !file.isOptimistic && handleItemOpen(file.id, 'file', file, filteredFiles)}
                                         >
                                             <td className="py-4 pl-6 flex items-center gap-4 relative">
                                                 {/* Checkbox for marking mode */}

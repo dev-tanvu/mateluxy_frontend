@@ -135,11 +135,17 @@ export default function FolderPage() {
         if (itemType === 'folder') {
             router.push(`/file-manager/folder/${itemId}`);
         } else {
+            const allFiles = filteredFiles.map((f: any) => ({
+                url: f.url,
+                name: f.name,
+                type: getFileType(f.url)
+            }));
+
             openFile({
                 url: item.url,
                 name: item.name,
                 type: getFileType(item.url)
-            });
+            }, allFiles);
         }
     };
 

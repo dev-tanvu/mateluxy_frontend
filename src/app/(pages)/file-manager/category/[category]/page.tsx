@@ -390,7 +390,11 @@ export default function CategoryPage() {
                                         url: file.url,
                                         name: file.name,
                                         type: getFileType(file.url)
-                                    })}
+                                    }, files.map((f: any) => ({
+                                        url: f.url,
+                                        name: f.name,
+                                        type: getFileType(f.url)
+                                    })))}
                                 >
                                     {/* Checkbox for marking mode */}
                                     {isMarkingMode && (
