@@ -100,10 +100,10 @@ export function SpecificDetailsTab({ register, control, errors, watch, purpose }
                                     {...register('projectStatus', { required: "Project Status is required for Sell properties" })}
                                 >
                                     <option value="">Select status</option>
-                                    <option value="completed">Completed</option>
-                                    <option value="off_plan">Off Plan</option>
-                                    <option value="completed_primary">Completed Primary</option>
-                                    <option value="off_plan_primary">Off Plan Primary</option>
+                                    <option value="Resale - Ready to move">Resale - Ready to move</option>
+                                    <option value="Resale - Off-plan">Resale - Off-plan</option>
+                                    <option value="Primary - Ready to move">Primary - Ready to move</option>
+                                    <option value="Primary - Off-Plan">Primary - Off-Plan</option>
                                 </select>
                                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
                             </div>
