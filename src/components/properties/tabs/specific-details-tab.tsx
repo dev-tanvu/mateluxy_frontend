@@ -1,11 +1,12 @@
 'use client';
 
 import React from 'react';
-import { UseFormRegister, Control, FieldErrors, UseFormWatch } from 'react-hook-form';
+import { UseFormRegister, Control, FieldErrors, UseFormWatch, Controller } from 'react-hook-form';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { BedroomsSelect } from '../bedrooms-select';
 
 interface SpecificDetailsTabProps {
     register: UseFormRegister<any>;
@@ -153,17 +154,19 @@ export function SpecificDetailsTab({ register, control, errors, watch, purpose }
                     <Label htmlFor="bedrooms" className="text-[15px] font-medium text-gray-700">
                         Bedrooms <span className="text-red-500">*</span>
                     </Label>
-                    <Input
-                        id="bedrooms"
-                        type="number"
-                        placeholder="e.g. 05"
-                        className={cn(
-                            "h-[50px] bg-white border-[#EDF1F7] rounded-lg focus-visible:ring-blue-500 placeholder:text-[#8F9BB3] text-[15px]",
-                            errors.bedrooms && "border-red-500"
-                        )}
-                        {...register('bedrooms', { valueAsNumber: true })}
-                    />
-                    {errors.bedrooms && <p className="text-sm text-red-500">{errors.bedrooms.message as string}</p>}
+                    <div className="relative">
+                        <Controller
+                            control={control}
+                            name="bedrooms"
+                            render={({ field }) => (
+                                <BedroomsSelect
+                                    value={field.value?.toString()}
+                                    onChange={field.onChange}
+                                    error={errors.bedrooms?.message as string}
+                                />
+                            )}
+                        />
+                    </div>
                 </div>
 
                 <div className="space-y-2.5">
