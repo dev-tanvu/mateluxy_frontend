@@ -10,11 +10,14 @@ export interface FileToOpen {
     type: FileType;
 }
 
-interface FileOpenerContextType {
+export interface FileOpenerContextType {
     file: FileToOpen | null;
+    files: FileToOpen[];
     isOpen: boolean;
-    openFile: (file: FileToOpen) => void;
+    openFile: (file: FileToOpen, allFiles?: FileToOpen[]) => void;
     closeFile: () => void;
+    nextFile: () => void;
+    prevFile: () => void;
 }
 
 const FileOpenerContext = createContext<FileOpenerContextType | null>(null);
@@ -54,9 +57,10 @@ export function getFileType(url: string): FileType {
 
 export function FileOpenerProvider({ children }: { children: React.ReactNode }) {
     const [file, setFile] = useState<FileToOpen | null>(null);
+    const [files, setFiles] = useState<FileToOpen[]>([]);
     const [isOpen, setIsOpen] = useState(false);
 
-    const openFile = useCallback((newFile: FileToOpen) => {
+    const openFile = useCallback((newFile: FileToOpen, allFiles?: FileToOpen[]) => {
         // Skip opening for fonts and archives
         const extension = newFile.url.split('.').pop()?.toLowerCase() || '';
         const skipExtensions = ['zip', 'rar', '7z', 'tar', 'gz', 'ttf', 'otf', 'woff', 'woff2', 'eot'];
@@ -68,17 +72,59 @@ export function FileOpenerProvider({ children }: { children: React.ReactNode }) 
         }
 
         setFile(newFile);
+        if (allFiles) {
+            // Filter only compatible files for navigation
+            const compatibleFiles = allFiles.filter(f => !skipExtensions.includes(f.url.split('.').pop()?.toLowerCase() || ''));
+            setFiles(compatibleFiles);
+        } else {
+            setFiles([newFile]);
+        }
         setIsOpen(true);
     }, []);
 
     const closeFile = useCallback(() => {
         setIsOpen(false);
         // Delay clearing file to allow animation
-        setTimeout(() => setFile(null), 300);
+        setTimeout(() => {
+            setFile(null);
+            setFiles([]);
+        }, 300);
     }, []);
 
+    const nextFile = useCallback(() => {
+        if (!file || files.length <= 1) return;
+        const currentIndex = files.findIndex(f => f.url === file.url);
+        if (currentIndex === -1) return;
+
+        const nextIndex = (currentIndex + 1) % files.length;
+        setFile(files[nextIndex]);
+    }, [file, files]);
+
+    const prevFile = useCallback(() => {
+        if (!file || files.length <= 1) return;
+        const currentIndex = files.findIndex(f => f.url === file.url);
+        if (currentIndex === -1) return;
+
+        const prevIndex = (currentIndex - 1 + files.length) % files.length;
+        setFile(files[prevIndex]);
+    }, [file, files]);
+
+    // Keyboard navigation
+    React.useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!isOpen) return;
+
+            if (e.key === 'ArrowRight') nextFile();
+            if (e.key === 'ArrowLeft') prevFile();
+            if (e.key === 'Escape') closeFile();
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, nextFile, prevFile, closeFile]);
+
     return (
-        <FileOpenerContext.Provider value={{ file, isOpen, openFile, closeFile }}>
+        <FileOpenerContext.Provider value={{ file, files, isOpen, openFile, closeFile, nextFile, prevFile }}>
             {children}
         </FileOpenerContext.Provider>
     );

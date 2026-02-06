@@ -9,6 +9,13 @@ export const fileManagerService = {
         return response.data;
     },
 
+    getItemPath: async (id: string, type: 'file' | 'folder') => {
+        const response = await api.get<{ path: string }>(`/file-manager/item-path`, {
+            params: { id, type }
+        });
+        return response.data.path;
+    },
+
     createFolder: async (name: string, parentId?: string) => {
         const response = await api.post('/file-manager/folder', {
             name,

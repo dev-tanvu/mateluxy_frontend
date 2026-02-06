@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { X } from 'lucide-react';
 import { getFolderStyle } from '@/lib/utils/folder-colors';
+import { fileManagerService } from '@/services/file-manager.service';
 
 interface PropertiesModalProps {
     isOpen: boolean;
@@ -31,6 +32,20 @@ function formatDate(dateString: string) {
 }
 
 export function PropertiesModal({ isOpen, onClose, item, type }: PropertiesModalProps) {
+    const [locationPath, setLocationPath] = useState<string>('Loading...');
+
+    useEffect(() => {
+        if (isOpen && item) {
+            setLocationPath('Loading...');
+            fileManagerService.getItemPath(item.id, type)
+                .then(path => setLocationPath(path))
+                .catch(err => {
+                    console.error('Failed to get item path:', err);
+                    setLocationPath('Unknown');
+                });
+        }
+    }, [isOpen, item, type]);
+
     if (!isOpen || !item) return null;
 
     const iconSrc = type === 'folder'
@@ -78,7 +93,7 @@ export function PropertiesModal({ isOpen, onClose, item, type }: PropertiesModal
                         <div className="grid grid-cols-[100px_1fr] items-baseline">
                             <span className="text-[#8F9BB3] font-medium">Location:</span>
                             <span className="text-[#1A1A1A] break-all">
-                                {item.parentId ? 'Subfolder' : 'Root'}
+                                {locationPath}
                             </span>
                         </div>
 
